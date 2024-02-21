@@ -110,7 +110,8 @@ RUN python3 -m pip install -U 'pip<20' 'setuptools<50' && python3 -m pip install
     opencv-python==4.1.1.26 \
     'tokenize-rt>=3,<4' \
     netifaces \
-    requests==2.27.1
+    requests \
+    pydantic
 
 RUN python2 -m pip install --no-cache-dir 'opencv-python>=4.2,<4.3' 
 
