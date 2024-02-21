@@ -1,7 +1,7 @@
 ARG BUNDLE_PREFIX=awsdeepracercommunity
 FROM ${BUNDLE_PREFIX}/deepracer-robomaker-build-bundle:latest AS bundle
 
-FROM nvidia/cuda:12.1.0-devel-ubuntu18.04
+FROM nvidia/cuda:11.4.3-cudnn8-runtime-ubuntu18.04
 
 ENV TZ="America/New_York" 
 ENV DEBIAN_FRONTEND="noninteractive" 
