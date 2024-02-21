@@ -2,6 +2,8 @@
 
 import os
 import logging
+
+import boto3
 import botocore
 
 from markov.boto.s3.s3_client import S3Client
@@ -71,6 +73,33 @@ class RewardFunction():
                              SIMAPP_EVENT_ERROR_CODE_500)
         return self._reward_function
 
+    def _download_directory_from_s3(self):
+        #session = boto3.session.Session()
+
+        s3_client = boto3.resource(
+            service_name='s3',
+            endpoint_url='http://minio:9000',
+        )
+        bucket = s3_client.Bucket('bucket')
+        prefix = 'custom_files/reward'
+        os.makedirs(f'{os.path.dirname(self._local_path)}/reward')
+        for obj in bucket.objects.filter(Prefix=prefix):
+            suffix = '/'.join(obj.key.split('/')[1:])
+
+            LOG.info(f'using suffix: {suffix}')
+            local_dir = os.path.dirname(suffix)
+            if local_dir and not os.path.exists(local_dir):
+                os.makedirs(local_dir)
+            lpath = f'{os.path.dirname(self._local_path)}/{suffix}'
+            LOG.info(f'Downloading {obj.key} to {lpath}')
+
+            self._s3_client.download_file(
+                bucket=self._bucket,
+                s3_key=obj.key,
+                local_path=lpath)
+            LOG.info(f'Successfully Downloaded {obj.key} to {self._local_path}')
+            LOG.info('FOUND CUSTOM AGENT files: {}'.format(os.listdir('custom_files/agent')))
+
     def _download(self):
         '''Download customer reward function from s3 with retry logic'''
 
@@ -81,14 +110,22 @@ class RewardFunction():
 
         # download customer reward function with retry
         try:
-            self._s3_client.download_file(bucket=self._bucket,
-                                          s3_key=self._s3_key,
-                                          local_path=self._local_path)
+            LOG.info(f'Downloading {self._s3_key} to {self._local_path}')
+            self._download_directory_from_s3()
+
+            self._s3_client.download_file(
+                bucket=self._bucket,
+                s3_key=self._s3_key,
+                local_path=self._local_path)
         except botocore.exceptions.ClientError as err:
             log_and_exit("Failed to download reward function: s3_bucket: {}, s3_key: {}, {}"\
                 .format(self._bucket, self._s3_key, err),
                          SIMAPP_SIMULATION_WORKER_EXCEPTION,
                          SIMAPP_EVENT_ERROR_CODE_500)
+        LOG.info('IN DIR: {}'.format(os.getcwd()))
+        LOG.info('FILES IN DIR: {}'.format(os.listdir()))
 
-        LOG.info("[s3] Successfully downloaded reward function from s3 key {} to local \
+        LOG.info('FOUND CUSTOM files: {}'.format(os.listdir('custom_files')))
+        LOG.info('FOUND CUSTOM AGENT files: {}'.format(os.listdir('custom_files/agent')))
+        LOG.info("[s32.0] Successfully downloaded reward function from s3 key {} to local \
                  {}.".format(self._s3_key, self._local_path))
