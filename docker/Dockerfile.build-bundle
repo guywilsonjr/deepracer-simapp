@@ -4,7 +4,9 @@ FROM $CORE_PREFIX/deepracer-robomaker-build-core:latest
 COPY bundle/ /opt/bundle
 WORKDIR /opt/bundle
 
-RUN rosdep update --include-eol-distros && rosdep install --from-paths src --ignore-src -r -y 
+RUN rosdep update --include-eol-distros && rosdep install --from-paths src --ignore-src -r -y
+ENV COLCON_PYTHON_EXECUTABLE="/usr/bin/python3.7"
+
 RUN bash -c "source /opt/ros/melodic/setup.bash && colcon build"
 
 ENTRYPOINT ["/ros_entrypoint.sh"]
