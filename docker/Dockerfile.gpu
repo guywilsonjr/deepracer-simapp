@@ -160,6 +160,7 @@ ENV COLCON_CURRENT_PREFIX="/opt/install"
 ENV COLCON_PYTHON_EXECUTABLE="/usr/bin/python3.7"
 ENV _CATKIN_SETUP_DIR="/opt/ros/melodic"
 
+
 COPY ./bundle/rl_coach.patch /opt/rl_coach.patch
 RUN patch -p1 -N --directory=/usr/local/lib/python3.7/dist-packages/ < /opt/rl_coach.patch
 RUN patch -p1 -N --directory=/usr/local/lib/python3.6/dist-packages/ < /opt/rl_coach.patch

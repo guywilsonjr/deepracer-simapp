@@ -86,7 +86,6 @@ class RewardFunction():
         for obj in bucket.objects.filter(Prefix=prefix):
             suffix = '/'.join(obj.key.split('/')[1:])
 
-            LOG.info(f'using suffix: {suffix}')
             local_dir = os.path.dirname(suffix)
             if local_dir and not os.path.exists(local_dir):
                 os.makedirs(local_dir)
@@ -98,7 +97,6 @@ class RewardFunction():
                 s3_key=obj.key,
                 local_path=lpath)
             LOG.info(f'Successfully Downloaded {obj.key} to {self._local_path}')
-            LOG.info('FOUND CUSTOM AGENT files: {}'.format(os.listdir('custom_files/agent')))
 
     def _download(self):
         '''Download customer reward function from s3 with retry logic'''
@@ -122,10 +120,6 @@ class RewardFunction():
                 .format(self._bucket, self._s3_key, err),
                          SIMAPP_SIMULATION_WORKER_EXCEPTION,
                          SIMAPP_EVENT_ERROR_CODE_500)
-        LOG.info('IN DIR: {}'.format(os.getcwd()))
-        LOG.info('FILES IN DIR: {}'.format(os.listdir()))
 
-        LOG.info('FOUND CUSTOM files: {}'.format(os.listdir('custom_files')))
-        LOG.info('FOUND CUSTOM AGENT files: {}'.format(os.listdir('custom_files/agent')))
-        LOG.info("[s32.0] Successfully downloaded reward function from s3 key {} to local \
+        LOG.info("[s3] Successfully downloaded reward function from s3 key {} to local \
                  {}.".format(self._s3_key, self._local_path))
