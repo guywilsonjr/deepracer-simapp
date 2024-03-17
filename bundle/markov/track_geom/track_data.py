@@ -197,8 +197,8 @@ class TrackData(object):
             self._outer_lane_reverse_ = TrackLine(poly_func((waypoints[:, 4:6][::-1] + \
                                                              waypoints[:, 0:2][::-1]) / 2))
             if self.is_loop:
-                self._inner_poly_ = Polygon(self.center_line.line, [self.inner_border.line])
-                self._road_poly_ = Polygon(self.outer_border.line, [self.inner_border.line])
+                self._inner_poly_ = Polygon(self.center_line, [self.inner_border])
+                self._road_poly_ = Polygon(self.outer_border, [self.inner_border])
                 self._is_ccw_ = self._center_line_forward_.is_ccw
             else:
                 self._inner_poly_ = Polygon(np.vstack((self.center_line.line,
