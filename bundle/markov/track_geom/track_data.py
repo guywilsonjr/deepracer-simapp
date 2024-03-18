@@ -9,8 +9,7 @@ import rospkg
 import rospy
 
 from geometry_msgs.msg import Pose
-from shapely import Point, Polygon
-from shapely import LinearRing, LineString
+from shapely import Point, Polygon, LinearRing, LineString
 
 from markov.agent_ctrl.constants import RewardParam
 from markov.cameras.frustum_manager import FrustumManager
@@ -25,13 +24,19 @@ class FiniteDifference(Enum):
     CENTRAL_DIFFERENCE = 1
     FORWARD_DIFFERENCE = 2
 
-class TrackLine(object):
+class TrackLine:
     def __init__(self, line):
         self.line = line
         self.ndists = [self.line.project(Point(p), normalized=True)
                        for p in self.line.coords[:-1]] + [1.0]
     def __getattr__(self, name):
         return getattr(self.line, name)
+
+    def __len__(self):
+        return len(self.line.coords)
+
+    def __iter__(self):
+        return iter(self.line.coords)
 
     def find_prev_next_waypoints(self, distance, normalized=False):
         ndist = distance if normalized else distance / self.line.length

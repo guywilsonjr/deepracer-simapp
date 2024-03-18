@@ -48,5 +48,4 @@ for a in $ARCH; do
     set -x
     docker buildx build . ${OPT_NOCACHE} -t $PREFIX/deepracer-robomaker:${VERSION}-${a} -f docker/Dockerfile.${a} --build-arg IMG_VERSION=$VERSION --build-arg BUNDLE_PREFIX=${PREFIX} --build-arg SNS_ACCESS_KEY_ID=${SNS_ACCESS_KEY_ID} --build-arg SNS_SECRET_ACCESS_KEY=${SNS_SECRET_ACCESS_KEY}
     set +x
-
 done
