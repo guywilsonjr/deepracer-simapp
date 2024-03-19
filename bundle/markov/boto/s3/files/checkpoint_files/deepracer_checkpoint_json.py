@@ -177,8 +177,7 @@ class DeepracerCheckpointJson():
             else:
                 raise ex
 
-            data += f"{body}\n"
-
+        data += f"{body}\n"
         self._s3_client.put_object(
             bucket=self._bucket,
             s3_key=checkpoint_log_fn,

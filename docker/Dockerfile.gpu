@@ -121,7 +121,7 @@ ADD docker/requirements.txt .
 RUN curl -s https://bootstrap.pypa.io/get-pip.py -o - | python3
 RUN python3 -m pip install --no-cache-dir -U pip 'setuptools<65' && pip3 install --no-cache-dir -r requirements.txt
 RUN pip3 install --no-cache-dir pydantic
-
+RUN python3.8 -m pip install --no-cache-dir -r requirements.txt
 
 COPY --from=bundle  /opt/bundle/install /opt/install
 WORKDIR /opt/install
