@@ -55,7 +55,7 @@ SM_MODEL_OUTPUT_DIR = os.environ.get("SM_MODEL_DIR", "/opt/ml/model")
 IS_PROFILER_ON, PROFILER_S3_BUCKET, PROFILER_S3_PREFIX = utils.get_sagemaker_profiler_env()
 
 def training_worker(graph_manager, task_parameters, user_batch_size,
-                    user_episode_per_rollout, training_algorithm):
+                    user_episode_per_rollout, training_algorithm, s3_endpoint_url):
     try:
         # initialize graph
         graph_manager.create_graph(task_parameters)
@@ -75,7 +75,7 @@ def training_worker(graph_manager, task_parameters, user_batch_size,
         while steps < graph_manager.improve_steps.num_steps:
              # Collect profiler information only IS_PROFILER_ON is true
             with utils.Profiler(s3_bucket=PROFILER_S3_BUCKET, s3_prefix=PROFILER_S3_PREFIX,
-                                output_local_path=TRAINING_WORKER_PROFILER_PATH, enable_profiling=IS_PROFILER_ON):
+                                output_local_path=TRAINING_WORKER_PROFILER_PATH, enable_profiling=IS_PROFILER_ON, s3_endpoint_url=s3_endpoint_url):
                 graph_manager.phase = core_types.RunPhase.TRAIN
                 graph_manager.fetch_from_worker(graph_manager.agent_params.algorithm.num_consecutive_playing_steps)
                 graph_manager.phase = core_types.RunPhase.UNDEFINED
@@ -421,7 +421,8 @@ def main():
         task_parameters=task_parameters,
         user_batch_size=json.loads(robomaker_hyperparams_json)["batch_size"],
         user_episode_per_rollout=json.loads(robomaker_hyperparams_json)["num_episodes_between_training"],
-        training_algorithm=training_algorithm
+        training_algorithm=training_algorithm,
+        s3_endpoint_url=args.s3_endpoint_url
     )
 
 

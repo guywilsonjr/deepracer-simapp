@@ -415,8 +415,9 @@ class Profiler(object):
     _profiler = None
     _profiler_owner = None
 
-    def __init__(self, s3_bucket, s3_prefix, output_local_path, enable_profiling=False):
+    def __init__(self, s3_bucket, s3_prefix, output_local_path, enable_profiling=False, s3_endpoint_url=None):
         self._enable_profiling = enable_profiling
+        self.s3_client = S3Client(region_name='us-east-1', s3_endpoint_url=s3_endpoint_url)
         self.s3_bucket = s3_bucket
         self.s3_prefix = s3_prefix
         self.output_local_path = output_local_path
@@ -474,12 +475,13 @@ class Profiler(object):
             s3_file_name (str): File name of the profiler in S3
         """
         try:
-            session = boto3.Session()
-            s3_client = session.client('s3', config=get_boto_config())
             s3_extra_args = get_s3_kms_extra_args()
-            s3_client.upload_file(Filename=s3_file_name, Bucket=self.s3_bucket,
-                                  Key=os.path.join(self.s3_prefix, s3_file_name),
-                                  ExtraArgs=s3_extra_args)
+            self.s3_client.upload_file(
+                local_path=s3_file_name,
+                bucket=self.s3_bucket,
+                s3_key=os.path.join(self.s3_prefix, s3_file_name),
+                s3_kms_extra_args=s3_extra_args
+            )
         except botocore.exceptions.ClientError as ex:
             log_and_exit("Unable to upload profiler data: {}, {}".format(self.s3_prefix,
                                                                          ex.response['Error']['Code']),

@@ -129,7 +129,7 @@ def exit_if_trainer_done(checkpoint_dir, simtrace_video_s3_writers, rollout_idx)
 
 
 def rollout_worker(graph_manager, num_workers, rollout_idx, task_parameters, simtrace_video_s3_writers,
-                   pause_physics, unpause_physics):
+                   pause_physics, unpause_physics, s3_endpoint_url):
     """
     wait for first checkpoint then perform rollouts using the model
     """
@@ -175,7 +175,7 @@ def rollout_worker(graph_manager, num_workers, rollout_idx, task_parameters, sim
     for _ in range((graph_manager.improve_steps / act_steps.num_steps).num_steps):
         # Collect profiler information only IS_PROFILER_ON is true
         with utils.Profiler(s3_bucket=PROFILER_S3_BUCKET, s3_prefix=PROFILER_S3_PREFIX,
-                            output_local_path=ROLLOUT_WORKER_PROFILER_PATH, enable_profiling=IS_PROFILER_ON):
+                            output_local_path=ROLLOUT_WORKER_PROFILER_PATH, enable_profiling=IS_PROFILER_ON, s3_endpoint_url=s3_endpoint_url):
             graph_manager.phase = RunPhase.TRAIN
             exit_if_trainer_done(checkpoint_dir, simtrace_video_s3_writers, rollout_idx)
             unpause_physics(EmptyRequest())
@@ -547,7 +547,8 @@ def main():
         task_parameters=task_parameters,
         simtrace_video_s3_writers=simtrace_video_s3_writers,
         pause_physics=pause_physics,
-        unpause_physics=unpause_physics
+        unpause_physics=unpause_physics,
+        s3_endpoint_url=args.s3_endpoint_url
     )
 
 if __name__ == '__main__':
