@@ -11,6 +11,9 @@ import json
 import logging
 import os
 import time
+from datetime import datetime
+
+import boto3
 import rospy
 import botocore
 
@@ -127,6 +130,31 @@ def exit_if_trainer_done(checkpoint_dir, simtrace_video_s3_writers, rollout_idx)
         logger.info("Received termination signal from trainer. Goodbye.")
         simapp_exit_gracefully()
 
+def notify_start_training():
+    if 'SNS_TOPIC_ARN' not in os.environ or 'SNS_ACCESS_KEY_ID' not in os.environ or 'SNS_SECRET_ACCESS_KEY' not in os.environ or 'SNS_SESSION_TOKEN' not in os.environ:
+        return
+    sns_topic_arn = os.environ['SNS_TOPIC_ARN']
+    sns_access_key_id = os.environ['SNS_ACCESS_KEY_ID']
+    sns_secret_access_key = os.environ['SNS_SECRET_ACCESS_KEY']
+    sns_session_token = os.environ['SNS_SESSION_TOKEN']
+    session = boto3.Session(
+        aws_access_key_id=sns_access_key_id,
+        aws_secret_access_key=sns_secret_access_key,
+        aws_session_token=sns_session_token
+    )
+    sns = session.client('sns')
+    data = {
+        'message_type': 'SIMULATION_WORKER_START',
+        'sim_id': int(os.environ['SIMULATION_ID']),
+        'rollout_idx': int(os.environ['ROLLOUT_IDX']),
+        'date_time': datetime.now().isoformat(),
+    }
+    message = json.dumps(data)
+    sns.publish(
+        TopicArn=sns_topic_arn,
+        Message=message
+    )
+
 
 def rollout_worker(graph_manager, num_workers, rollout_idx, task_parameters, simtrace_video_s3_writers,
                    pause_physics, unpause_physics, s3_endpoint_url):
@@ -171,7 +199,6 @@ def rollout_worker(graph_manager, num_workers, rollout_idx, task_parameters, sim
     act_steps = EnvironmentEpisodes(act_steps)
 
     configure_environment_randomizer()
-
     for _ in range((graph_manager.improve_steps / act_steps.num_steps).num_steps):
         # Collect profiler information only IS_PROFILER_ON is true
         with utils.Profiler(s3_bucket=PROFILER_S3_BUCKET, s3_prefix=PROFILER_S3_PREFIX,
@@ -366,7 +393,7 @@ def main():
         region_name=args.aws_region,
         s3_endpoint_url=args.s3_endpoint_url,
         local_path=HYPERPARAMETER_LOCAL_PATH_FORMAT.format('agent'))
-    sm_hyperparams_dict = hyperparameters.get_hyperparameters_dict()
+    notify_start_training()
 
     agent_config = {
         'model_metadata': model_metadata,
@@ -388,8 +415,7 @@ def main():
             ConfigParams.COLLISION_PENALTY.value: args.collision_penalty,
             ConfigParams.OFF_TRACK_PENALTY.value: args.off_track_penalty,
             ConfigParams.ROUND_ROBIN_ADVANCE_DIST.value: args.round_robin_advance_dist,
-            ConfigParams.START_POSITION_OFFSET.value: args.start_position_offset,
-            'hyperparameters': sm_hyperparams_dict
+            ConfigParams.START_POSITION_OFFSET.value: args.start_position_offset
         }
     }
 

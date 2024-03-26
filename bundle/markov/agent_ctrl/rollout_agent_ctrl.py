@@ -147,7 +147,6 @@ class RolloutCtrl(AgentCtrlInterface, ObserverInterface, AbstractTracker):
                             'steps': 0.0,
                             'start_ndist': start_ndist,
                             'prev_car_pose': 0.0}
-        self.hyper_params = config_dict['hyperparameters']
         # Load the action space
         self._model_metadata_ = config_dict[const.ConfigParams.MODEL_METADATA.value]
         self._action_space_ = load_action_space(self._model_metadata_)
@@ -769,13 +768,14 @@ class RolloutCtrl(AgentCtrlInterface, ObserverInterface, AbstractTracker):
         self._pause_duration = 0.0
         current_car_pose = self._track_data_.get_object_pose(self._agent_name_)
         try:
-            updated_reward_params = self._reward_params_
+            updated_reward_params = copy.deepcopy(self._reward_params_)
             updated_reward_params.update(
                 {
-                    'model_metadata': self._model_metadata_.get_model_metadata_info(),
-                    'hyperparameters': self.hyper_params,
+                    'metadata': self._model_metadata_.get_model_metadata_info(),
+                    'episode_status': episode_status,
+                    'pause': pause
                 })
-            reward = float(self._reward_(copy.deepcopy(updated_reward_params)))
+            reward = float(self._reward_(updated_reward_params))
         except Exception as ex:
             raise RewardFunctionError('Reward function exception {}'.format(ex))
         if math.isnan(reward) or math.isinf(reward):
