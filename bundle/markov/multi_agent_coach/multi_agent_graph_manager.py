@@ -71,6 +71,7 @@ class MultiAgentGraphManager(object):
         self.env_params = env_params
         self.agents_params = agents_params
         self.agent_params = agents_params[0] # ...(find a better way)...
+        self.improvement_iteration = 0
 
         for agent_index, agent_params in enumerate(agents_params):
             if len(agents_params) == 1:
@@ -372,7 +373,7 @@ class MultiAgentGraphManager(object):
                 # act for at least steps, though don't interrupt an episode
                 count_end = self.current_step_counter + steps
                 while self.current_step_counter < count_end:
-                    self.act(EnvironmentEpisodes(1))
+                    self.act(EnvironmentEpisodes(1), step_data={'source': 'heatup', 'checkpoint_id': self.checkpoint_id, 'improvement_iteration': self.improvement_iteration})
 
     def handle_episode_ended(self) -> None:
         """
@@ -410,7 +411,8 @@ class MultiAgentGraphManager(object):
         [environment.reset_internal_state(force_environment_reset) for environment in self.environments]
         [manager.reset_internal_state() for manager in self.level_managers]
 
-    def act(self, steps: PlayingStepsType, wait_for_full_episodes=False) -> None:
+
+    def act(self, steps: PlayingStepsType, wait_for_full_episodes=False, step_data={}) -> None:
         """
         Do several steps of acting on the environment
         :param wait_for_full_episodes: if set, act for at least `steps`, but make sure that the last episode is complete
@@ -421,13 +423,16 @@ class MultiAgentGraphManager(object):
         # perform several steps of playing
         count_end = self.current_step_counter + steps
         done = False
+        msgs = []
         while self.current_step_counter < count_end or (wait_for_full_episodes and not done):
             # reset the environment if the previous episode was terminated
             if self.reset_required:
                 self.reset_internal_state()
 
             steps_begin = self.environments[0].total_steps_counter
-            done = self.top_level_manager.step(None)
+
+            done, new_msgs = self.top_level_manager.step(None, step_data=step_data)
+            msgs.extend(new_msgs)
             steps_end = self.environments[0].total_steps_counter
 
             if done:
@@ -440,6 +445,7 @@ class MultiAgentGraphManager(object):
             # or in imitation learning), we force end the loop, so that it will not continue forever.
             if (steps_end - steps_begin) == 0:
                 break
+        return msgs
 
     def train_and_act(self, steps: StepMethod) -> None:
         """
@@ -461,7 +467,7 @@ class MultiAgentGraphManager(object):
                     # takes at least one step in the environment (at the GraphManager level).
                     # The agent might also decide to skip acting altogether.
                     # Depending on internal counters and parameters, it doesn't always train or save checkpoints.
-                    self.act(EnvironmentSteps(1))
+                    self.act(EnvironmentSteps(1), step_data={'source': 'train_act', 'checkpoint_id': self.checkpoint_id, 'improvement_iteration': self.improvement_iteration})
                     self.train()
                     self.occasionally_save_checkpoint()
 
@@ -494,7 +500,7 @@ class MultiAgentGraphManager(object):
                 # act for at least `steps`, though don't interrupt an episode
                 count_end = self.current_step_counter + steps
                 while self.current_step_counter < count_end:
-                    self.act(EnvironmentEpisodes(1))
+                    self.act(EnvironmentEpisodes(1), step_data={'source': 'evaluate', 'checkpoint_id': self.checkpoint_id, 'improvement_iteration': self.improvement_iteration})
                     self.sync()
         if self.should_stop():
             self.flush_finished()
@@ -535,6 +541,7 @@ class MultiAgentGraphManager(object):
             self.train_and_act(self.steps_between_evaluation_periods)
             if self.evaluate(self.evaluation_steps):
                 break
+        self.improvement_iteration += 1
 
     def restore_checkpoint(self):
         self.verify_graph_was_created()

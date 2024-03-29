@@ -130,7 +130,8 @@ class DeepRacerRacetrackEnv(MultiAgentEnvironment):
                          SIMAPP_SIMULATION_WORKER_EXCEPTION,
                          SIMAPP_EVENT_ERROR_CODE_500)
 
-    def _update_state(self):
+
+    def _update_state(self, step_data={}):
         try:
             self.state = list()
             self.reward = list()
@@ -151,12 +152,14 @@ class DeepRacerRacetrackEnv(MultiAgentEnvironment):
                 # - There still can be delay to retrieve the sensor data and to trigger the pause/unpause, so
                 #   the step duration won't be exactly same.
                 self.unpause_physics()
+            msgs = []
 
             for agent, action in zip(self.agent_list, self.action_list):
-                next_state, reward, done = agent.judge_action(action, self._agents_info_map)
+                next_state, reward, done, new_msgs = agent.judge_action(action, self._agents_info_map, step_data=step_data)
                 self.state.append(next_state)
                 self.reward.append(reward)
                 self.done.append(done)
+                msgs.extend(new_msgs)
 
             if self.pause_physics and self.simapp_version >= SIMAPP_VERSION_4:
                 # When judge_action returns, we know step had been taken and
@@ -174,6 +177,7 @@ class DeepRacerRacetrackEnv(MultiAgentEnvironment):
             if self.done_condition(self.done):
                 [agent.finish_episode() for agent in self.non_trainable_agents]
                 [agent.finish_episode() for agent in self.agent_list]
+            return msgs
         except GenericTrainerException as ex:
             ex.log_except_and_exit()
         except GenericRolloutException as ex:

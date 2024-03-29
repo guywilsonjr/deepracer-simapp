@@ -34,8 +34,8 @@ class TrainingCtrl(AgentCtrlInterface):
     def update_agent(self, action):
         return {}
 
-    def judge_action(self, agents_info_map):
-        return None, None, None
+    def judge_action(self, agents_info_map, step_data={}):
+        return None, None, None, None
 
     def finish_episode(self):
         pass

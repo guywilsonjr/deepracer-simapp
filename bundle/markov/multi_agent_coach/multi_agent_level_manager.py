@@ -192,7 +192,7 @@ class MultiAgentLevelManager(EnvironmentInterface):
         """
         return list(self.agents.values())[0]
 
-    def step(self, action: Union[None, Dict[str, ActionType]]) -> bool:
+    def step(self, action: Union[None, Dict[str, ActionType]], step_data={}) -> bool:
         """
         Run a single step of following the behavioral scheme set for this environment.
         :param action: the action to apply to the agents held in this level, before beginning following
@@ -214,7 +214,7 @@ class MultiAgentLevelManager(EnvironmentInterface):
 
         # step for several time steps
         accumulated_rewards = [0] * len(self.agents)
-
+        msgs = []
         for i in range(self.steps_limit.num_steps):
             # let the agent observe the result and decide if it wants to terminate the episode
             done = self.done_condition([agent.observe(env_response) for agent, env_response in zip(self.agents.values(), env_responses)])
@@ -227,8 +227,9 @@ class MultiAgentLevelManager(EnvironmentInterface):
                 # imitation agents will return no action since they don't play during training
                 if any(action_infos):
                     # step environment
-                    env_responses = self.environment.step([action_info.action if action_info else None
-                                                           for action_info in action_infos])
+                    env_responses, new_msgs = self.environment.step([action_info.action if action_info else None
+                                                           for action_info in action_infos], step_data=step_data)
+                    msgs.extend(new_msgs)
                     if isinstance(env_responses, EnvResponse):
                         env_responses = [env_responses]
 
@@ -252,7 +253,7 @@ class MultiAgentLevelManager(EnvironmentInterface):
             self.handle_episode_ended()
             self.reset_required = True
 
-        return done
+        return done, msgs
 
     def save_checkpoint(self, checkpoint_prefix: str) -> None:
         """

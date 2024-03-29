@@ -648,7 +648,7 @@ class RolloutCtrl(AgentCtrlInterface, ObserverInterface, AbstractTracker):
         new_speed = max(min(const.MAX_SPEED, new_speed), const.MIN_SPEED)
         return float(new_speed / self._wheel_radius_)
 
-    def judge_action(self, agents_info_map):
+    def judge_action(self, agents_info_map, step_data={}):
         '''Judge the action that agent just take
 
         Args:
@@ -669,6 +669,7 @@ class RolloutCtrl(AgentCtrlInterface, ObserverInterface, AbstractTracker):
         self._reward_params_[const.RewardParam.OFFTRACK.value[0]] = \
             reset_rules_status[EpisodeStatus.OFF_TRACK.value]
         episode_status, pause, done = self._check_for_episode_termination(reset_rules_status, agents_info_map)
+        msgs = []
         if not pause and not done:
             # If episode termination check returns status as not paused and not done, and
             # if reset_rules_status's CRASHED is true, then the crashed object must have smaller normalize progress
@@ -678,7 +679,7 @@ class RolloutCtrl(AgentCtrlInterface, ObserverInterface, AbstractTracker):
             # Therefore, setting reward params' CRASHED as false if not paused and not done.
             self._reward_params_[const.RewardParam.CRASHED.value[0]] = False
         if self._ctrl_status[AgentCtrlStatus.AGENT_PHASE.value] == AgentPhase.RUN.value:
-            reward = self._judge_action_at_run_phase(episode_status=episode_status, pause=pause)
+            reward, msgs = self._judge_action_at_run_phase(episode_status=episode_status, pause=pause, step_data=step_data)
             # for passing control from the virtual event console
             self._check_for_ctrl_status_pause(is_car_in_pause_state=pause)
         elif self._ctrl_status[AgentCtrlStatus.AGENT_PHASE.value] == AgentPhase.PAUSE.value:
@@ -714,7 +715,7 @@ class RolloutCtrl(AgentCtrlInterface, ObserverInterface, AbstractTracker):
         if episode_status == EpisodeStatus.TIME_UP.value:
             self._metrics.append_episode_metrics(is_complete=False)
         self._metrics.update_mp4_video_metrics(self._step_metrics_)
-        return reward, done, self._step_metrics_
+        return reward, done, self._step_metrics_, msgs
 
     def _check_for_ctrl_status_pause(self, is_car_in_pause_state):
         """Check if we need to change to pause status because a maunal pause ctrl is sent.
@@ -764,18 +765,24 @@ class RolloutCtrl(AgentCtrlInterface, ObserverInterface, AbstractTracker):
             episode_status = EpisodeStatus.PAUSE.value
         return reward, episode_status
 
-    def _judge_action_at_run_phase(self, episode_status, pause):
+    def _judge_action_at_run_phase(self, episode_status, pause, step_data={}):
         self._pause_duration = 0.0
         current_car_pose = self._track_data_.get_object_pose(self._agent_name_)
         try:
-            updated_reward_params = copy.deepcopy(self._reward_params_)
-            updated_reward_params.update(
-                {
-                    'metadata': self._model_metadata_.get_model_metadata_info(),
-                    'episode_status': episode_status,
-                    'pause': pause
-                })
-            reward = float(self._reward_(updated_reward_params))
+
+            updated_reward_params = {
+                'metadata': self._model_metadata_.get_model_metadata_info(),
+                'episode_status': episode_status,
+                'is_training': self._is_training_,
+                'step_action': self._step_metrics_[StepMetrics.ACTION.value],
+                'tstamp': self._step_metrics_[StepMetrics.TIME.value],
+                'episode': self._step_metrics_[StepMetrics.EPISODE.value],
+                **step_data,
+                **copy.deepcopy(self._reward_params_)
+            }
+            reward_msg_tup = self._reward_(updated_reward_params)
+            reward = float(reward_msg_tup[0])
+            msgs = reward_msg_tup[1]
         except Exception as ex:
             raise RewardFunctionError('Reward function exception {}'.format(ex))
         if math.isnan(reward) or math.isinf(reward):
@@ -851,7 +858,7 @@ class RolloutCtrl(AgentCtrlInterface, ObserverInterface, AbstractTracker):
                                   blocking=True)
             self._ctrl_status[AgentCtrlStatus.AGENT_PHASE.value] = AgentPhase.PAUSE.value
         self._data_dict_['prev_car_pose'] = current_car_pose
-        return reward
+        return reward, msgs
 
     def _judge_action_at_pause_phase(self, episode_status, done):
         reward = const.ZERO_REWARD

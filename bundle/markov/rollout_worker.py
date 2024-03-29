@@ -147,7 +147,7 @@ def notify_start_training():
         'message_type': 'SIMULATION_WORKER_START',
         'sim_id': int(os.environ['SIMULATION_ID']),
         'rollout_idx': int(os.environ['ROLLOUT_IDX']),
-        'date_time': datetime.now().isoformat(),
+        'date_time': datetime.utcnow().isoformat()
     }
     message = json.dumps(data)
     sns.publish(
@@ -199,7 +199,9 @@ def rollout_worker(graph_manager, num_workers, rollout_idx, task_parameters, sim
     act_steps = EnvironmentEpisodes(act_steps)
 
     configure_environment_randomizer()
-    for _ in range((graph_manager.improve_steps / act_steps.num_steps).num_steps):
+    step_data = {}
+    for rollout_step in range((graph_manager.improve_steps / act_steps.num_steps).num_steps):
+        step_data.update({'rollout_step': rollout_step,  'source': 'rollout_worker'})
         # Collect profiler information only IS_PROFILER_ON is true
         with utils.Profiler(s3_bucket=PROFILER_S3_BUCKET, s3_prefix=PROFILER_S3_PREFIX,
                             output_local_path=ROLLOUT_WORKER_PROFILER_PATH, enable_profiling=IS_PROFILER_ON, s3_endpoint_url=s3_endpoint_url):
@@ -207,7 +209,7 @@ def rollout_worker(graph_manager, num_workers, rollout_idx, task_parameters, sim
             exit_if_trainer_done(checkpoint_dir, simtrace_video_s3_writers, rollout_idx)
             unpause_physics(EmptyRequest())
             graph_manager.reset_internal_state(True)
-            graph_manager.act(act_steps, wait_for_full_episodes=graph_manager.agent_params.algorithm.act_for_full_episodes)
+            msgs = graph_manager.act(act_steps, step_data=step_data, wait_for_full_episodes=graph_manager.agent_params.algorithm.act_for_full_episodes)
             graph_manager.reset_internal_state(True)
             time.sleep(1)
             pause_physics(EmptyRequest())
@@ -242,7 +244,7 @@ def rollout_worker(graph_manager, num_workers, rollout_idx, task_parameters, sim
                         print ("Additional evaluation. New Checkpoint: {}, Last Checkpoint: {}".format(new_checkpoint, last_checkpoint))
                         graph_manager.evaluate(EnvironmentSteps(1))
                     else:
-                        time.sleep(5)
+                        time.sleep(2)
                     new_checkpoint = data_store.get_coach_checkpoint_number('agent')
 
                 # Save the mp4 for Robo+Sage jobs

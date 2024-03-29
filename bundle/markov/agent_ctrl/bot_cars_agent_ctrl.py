@@ -335,7 +335,7 @@ class BotCarsCtrl(AgentCtrlInterface, AbstractTracker):
                                 AgentInfo.START_NDIST.value: 0.0}})
         return self.bot_car_progresses
 
-    def judge_action(self, agents_info_map):
+    def judge_action(self, agents_info_map, step_data={}):
         '''Judge action to see whether reset is needed
 
         Args:
@@ -380,7 +380,7 @@ class BotCarsCtrl(AgentCtrlInterface, AbstractTracker):
         else:
             raise GenericRolloutException('bot car phase {} is not defined'.\
                   format(self.bot_car_phase))
-        return None, None, None
+        return None, None, None, None
 
     def finish_episode(self):
         pass

@@ -152,7 +152,7 @@ class MultiAgentEnvironment(EnvironmentInterface):
         """
         self._last_env_response = force_list(val)
 
-    def step(self, action: Union[List[ActionType], ActionType]) -> List[EnvResponse]:
+    def step(self, action: Union[List[ActionType], ActionType], step_data={}) -> List[EnvResponse]:
         """
         Make a single step in the environment using the given action
 
@@ -181,8 +181,9 @@ class MultiAgentEnvironment(EnvironmentInterface):
         # act
         self._take_action(action)
 
+        step_data['episode_idx'] = self.episode_idx
         # observe
-        self._update_state()
+        msgs = self._update_state(step_data=step_data)
 
         self.total_reward_in_current_episode = [total_reward_in_current_episode + reward
                                                 for total_reward_in_current_episode, reward in
@@ -197,7 +198,7 @@ class MultiAgentEnvironment(EnvironmentInterface):
                 info=self.info
             ) for state, reward, done in zip(self.state, self.reward, self.done)]
 
-        return self.last_env_response
+        return self.last_env_response, msgs
 
     def handle_episode_ended(self) -> None:
         """
@@ -276,7 +277,7 @@ class MultiAgentEnvironment(EnvironmentInterface):
         """
         raise NotImplementedError("")
 
-    def _update_state(self) -> None:
+    def _update_state(self, step_data={}) -> None:
         """
         Updates the state from the environment.
         Should update self.state, self.reward, self.done, and self.info
