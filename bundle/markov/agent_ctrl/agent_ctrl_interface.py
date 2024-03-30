@@ -49,7 +49,7 @@ class AgentCtrlInterface(object, metaclass=abc.ABCMeta):
         raise NotImplementedError('Agent control must be able to update agent')
 
     @abc.abstractmethod
-    def judge_action(self, agents_info_map, step_data={}):
+    def judge_action(self, agents_info_map):
         '''Returns the reward, done flag, step metrics after action is taken
 
         Args:

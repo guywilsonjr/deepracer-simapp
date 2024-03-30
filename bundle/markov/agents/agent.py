@@ -78,7 +78,7 @@ class Agent(object):
         '''
         return self._ctrl_.update_agent(action)
 
-    def judge_action(self, action, agents_info_map, step_data={}):
+    def judge_action(self, action, agents_info_map):
         '''Judge the taken action
 
         Args:
@@ -93,7 +93,7 @@ class Agent(object):
             next_state = self._sensor_.get_state()
         else:
             next_state = None
-        reward, done, _, msgs = self._ctrl_.judge_action(agents_info_map, step_data=step_data)
+        reward, done, _ = self._ctrl_.judge_action(agents_info_map)
         if hasattr(self._ctrl_, 'reward_data_pub') and self._ctrl_.reward_data_pub is not None:
             raw_state = self._sensor_.get_raw_state()
             # More visualizations topics can be added here
@@ -101,4 +101,4 @@ class Agent(object):
                 self._ctrl_.reward_data_pub.publish_frame(raw_state[Input.CAMERA.value], action, reward)
             elif Input.OBSERVATION.value in raw_state and raw_state[Input.OBSERVATION.value] is not None:
                 self._ctrl_.reward_data_pub.publish_frame(raw_state[Input.OBSERVATION.value], action, reward)
-        return next_state, reward, done, msgs
+        return next_state, reward, done

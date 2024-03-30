@@ -11,9 +11,6 @@ import json
 import logging
 import os
 import time
-from datetime import datetime
-
-import boto3
 import rospy
 import botocore
 
@@ -66,6 +63,7 @@ from markov.boto.s3.constants import (HYPERPARAMETER_LOCAL_PATH_FORMAT,
                                       ModelMetadataKeys)
 from markov.boto.s3.s3_client import S3Client
 from std_srvs.srv import Empty, EmptyRequest
+from sidecar_memory.sidecar import sidecar_process
 
 logger = Logger(__name__, logging.INFO).get_logger()
 
@@ -130,31 +128,6 @@ def exit_if_trainer_done(checkpoint_dir, simtrace_video_s3_writers, rollout_idx)
         logger.info("Received termination signal from trainer. Goodbye.")
         simapp_exit_gracefully()
 
-def notify_start_training():
-    if 'SNS_TOPIC_ARN' not in os.environ or 'SNS_ACCESS_KEY_ID' not in os.environ or 'SNS_SECRET_ACCESS_KEY' not in os.environ or 'SNS_SESSION_TOKEN' not in os.environ:
-        return
-    sns_topic_arn = os.environ['SNS_TOPIC_ARN']
-    sns_access_key_id = os.environ['SNS_ACCESS_KEY_ID']
-    sns_secret_access_key = os.environ['SNS_SECRET_ACCESS_KEY']
-    sns_session_token = os.environ['SNS_SESSION_TOKEN']
-    session = boto3.Session(
-        aws_access_key_id=sns_access_key_id,
-        aws_secret_access_key=sns_secret_access_key,
-        aws_session_token=sns_session_token
-    )
-    sns = session.client('sns')
-    data = {
-        'message_type': 'SIMULATION_WORKER_START',
-        'sim_id': int(os.environ['SIMULATION_ID']),
-        'rollout_idx': int(os.environ['ROLLOUT_IDX']),
-        'date_time': datetime.utcnow().isoformat()
-    }
-    message = json.dumps(data)
-    sns.publish(
-        TopicArn=sns_topic_arn,
-        Message=message
-    )
-
 
 def rollout_worker(graph_manager, num_workers, rollout_idx, task_parameters, simtrace_video_s3_writers,
                    pause_physics, unpause_physics, s3_endpoint_url):
@@ -199,9 +172,10 @@ def rollout_worker(graph_manager, num_workers, rollout_idx, task_parameters, sim
     act_steps = EnvironmentEpisodes(act_steps)
 
     configure_environment_randomizer()
-    step_data = {}
+    sidecar_process.start_sidecar_process()
     for rollout_step in range((graph_manager.improve_steps / act_steps.num_steps).num_steps):
-        step_data.update({'rollout_step': rollout_step,  'source': 'rollout_worker'})
+        sidecar_process.memory['rollout_step'] = rollout_step
+        sidecar_process.memory['source'] = 'rollout_worker'
         # Collect profiler information only IS_PROFILER_ON is true
         with utils.Profiler(s3_bucket=PROFILER_S3_BUCKET, s3_prefix=PROFILER_S3_PREFIX,
                             output_local_path=ROLLOUT_WORKER_PROFILER_PATH, enable_profiling=IS_PROFILER_ON, s3_endpoint_url=s3_endpoint_url):
@@ -209,7 +183,7 @@ def rollout_worker(graph_manager, num_workers, rollout_idx, task_parameters, sim
             exit_if_trainer_done(checkpoint_dir, simtrace_video_s3_writers, rollout_idx)
             unpause_physics(EmptyRequest())
             graph_manager.reset_internal_state(True)
-            msgs = graph_manager.act(act_steps, step_data=step_data, wait_for_full_episodes=graph_manager.agent_params.algorithm.act_for_full_episodes)
+            graph_manager.act(act_steps, wait_for_full_episodes=graph_manager.agent_params.algorithm.act_for_full_episodes)
             graph_manager.reset_internal_state(True)
             time.sleep(1)
             pause_physics(EmptyRequest())
@@ -395,7 +369,6 @@ def main():
         region_name=args.aws_region,
         s3_endpoint_url=args.s3_endpoint_url,
         local_path=HYPERPARAMETER_LOCAL_PATH_FORMAT.format('agent'))
-    notify_start_training()
 
     agent_config = {
         'model_metadata': model_metadata,

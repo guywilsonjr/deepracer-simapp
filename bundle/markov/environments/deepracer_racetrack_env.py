@@ -1,7 +1,10 @@
 '''This module defines the interface between rl coach and the agents enviroment'''
 from __future__ import print_function
+
+import logging
 from typing import List, Union, Dict
 
+from markov.log_handler.logger import Logger
 from rl_coach.base_parameters import AgentParameters, VisualizationParameters
 from rl_coach.environments.environment import LevelSelection
 from rl_coach.filters.filter import NoInputFilter, NoOutputFilter
@@ -17,6 +20,9 @@ from markov.log_handler.exception_handler import log_and_exit
 from markov.log_handler.constants import (SIMAPP_SIMULATION_WORKER_EXCEPTION,
                                           SIMAPP_EVENT_ERROR_CODE_500)
 from markov.domain_randomizations.randomizer_manager import RandomizerManager
+
+
+LOG = Logger(__name__, logging.INFO).get_logger()
 
 # Max number of steps to allow per episode
 MAX_STEPS = 100000
@@ -130,8 +136,7 @@ class DeepRacerRacetrackEnv(MultiAgentEnvironment):
                          SIMAPP_SIMULATION_WORKER_EXCEPTION,
                          SIMAPP_EVENT_ERROR_CODE_500)
 
-
-    def _update_state(self, step_data={}):
+    def _update_state(self):
         try:
             self.state = list()
             self.reward = list()
@@ -152,14 +157,12 @@ class DeepRacerRacetrackEnv(MultiAgentEnvironment):
                 # - There still can be delay to retrieve the sensor data and to trigger the pause/unpause, so
                 #   the step duration won't be exactly same.
                 self.unpause_physics()
-            msgs = []
 
             for agent, action in zip(self.agent_list, self.action_list):
-                next_state, reward, done, new_msgs = agent.judge_action(action, self._agents_info_map, step_data=step_data)
+                next_state, reward, done = agent.judge_action(action, self._agents_info_map)
                 self.state.append(next_state)
                 self.reward.append(reward)
                 self.done.append(done)
-                msgs.extend(new_msgs)
 
             if self.pause_physics and self.simapp_version >= SIMAPP_VERSION_4:
                 # When judge_action returns, we know step had been taken and
@@ -177,7 +180,6 @@ class DeepRacerRacetrackEnv(MultiAgentEnvironment):
             if self.done_condition(self.done):
                 [agent.finish_episode() for agent in self.non_trainable_agents]
                 [agent.finish_episode() for agent in self.agent_list]
-            return msgs
         except GenericTrainerException as ex:
             ex.log_except_and_exit()
         except GenericRolloutException as ex:

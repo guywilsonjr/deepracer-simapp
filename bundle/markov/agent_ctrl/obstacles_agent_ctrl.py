@@ -165,7 +165,7 @@ class ObstaclesCtrl(AgentCtrlInterface):
         self._update_track_data_object_poses()
         return {}
 
-    def judge_action(self, agents_info_map, step_data={}):
+    def judge_action(self, agents_info_map):
         for agent_name, agent_info in agents_info_map.items():
             # check racecar crash with a obstacle
             crashed_object_name = agent_info[AgentInfo.CRASHED_OBJECT_NAME.value] \
@@ -174,7 +174,7 @@ class ObstaclesCtrl(AgentCtrlInterface):
             if OBSTACLE_NAME_PREFIX in crashed_object_name:
                 self._reset_obstacles()
                 break
-        return None, None, None, None
+        return None, None, None
 
     def finish_episode(self):
         pass

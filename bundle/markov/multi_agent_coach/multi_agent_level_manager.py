@@ -10,6 +10,8 @@ from rl_coach.saver import SaverCollection
 from rl_coach.spaces import ActionSpace, SpacesDefinition
 
 
+
+
 class MultiAgentLevelManager(EnvironmentInterface):
     """
     The LevelManager is in charge of managing a level in the hierarchy of control. Each level can have one or more
@@ -192,7 +194,7 @@ class MultiAgentLevelManager(EnvironmentInterface):
         """
         return list(self.agents.values())[0]
 
-    def step(self, action: Union[None, Dict[str, ActionType]], step_data={}) -> bool:
+    def step(self, action: Union[None, Dict[str, ActionType]]) -> bool:
         """
         Run a single step of following the behavioral scheme set for this environment.
         :param action: the action to apply to the agents held in this level, before beginning following
@@ -214,8 +216,8 @@ class MultiAgentLevelManager(EnvironmentInterface):
 
         # step for several time steps
         accumulated_rewards = [0] * len(self.agents)
-        msgs = []
-        for i in range(self.steps_limit.num_steps):
+
+        for _ in range(self.steps_limit.num_steps):
             # let the agent observe the result and decide if it wants to terminate the episode
             done = self.done_condition([agent.observe(env_response) for agent, env_response in zip(self.agents.values(), env_responses)])
             if done:
@@ -227,9 +229,9 @@ class MultiAgentLevelManager(EnvironmentInterface):
                 # imitation agents will return no action since they don't play during training
                 if any(action_infos):
                     # step environment
-                    env_responses, new_msgs = self.environment.step([action_info.action if action_info else None
-                                                           for action_info in action_infos], step_data=step_data)
-                    msgs.extend(new_msgs)
+
+                    env_responses = self.environment.step([action_info.action if action_info else None
+                                                           for action_info in action_infos])
                     if isinstance(env_responses, EnvResponse):
                         env_responses = [env_responses]
 
@@ -253,7 +255,7 @@ class MultiAgentLevelManager(EnvironmentInterface):
             self.handle_episode_ended()
             self.reset_required = True
 
-        return done, msgs
+        return done
 
     def save_checkpoint(self, checkpoint_prefix: str) -> None:
         """

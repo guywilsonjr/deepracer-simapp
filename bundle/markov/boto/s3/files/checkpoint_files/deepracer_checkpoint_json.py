@@ -15,8 +15,10 @@ from markov.boto.s3.constants import (DEEPRACER_CHECKPOINT_KEY_POSTFIX,
                                       DEEPRACER_CHECKPOINT_LOCAL_PATH_FORMAT,
                                       BEST_CHECKPOINT,
                                       LAST_CHECKPOINT)
+
 from botocore.exceptions import ClientError
 LOG = Logger(__name__, logging.INFO).get_logger()
+
 CHECKPOINT_LOG_SUFFIX = 'checkpoint_log.txt'
 
 class DeepracerCheckpointJson():
