@@ -41,7 +41,7 @@ from markov.boto.s3.constants import ModelMetadataKeys
 from markov.virtual_event.constants import PAUSE_TIME_BEFORE_START
 
 from rl_coach.core_types import RunPhase
-from sidecar_memory.sidecar import sidecar_process
+from sidecar.sidecar import sidecar_process
 
 LOG = Logger(__name__, logging.INFO).get_logger()
 
@@ -782,8 +782,11 @@ class RolloutCtrl(AgentCtrlInterface, ObserverInterface, AbstractTracker):
                 **copy.deepcopy(self._reward_params_)
             }
             reward = self._reward_(updated_reward_params)
-            resp = sidecar_process.send_message(str(reward))
-            LOG.info("Reward function response: {}".format(resp))
+            if isinstance(reward, tuple):
+                reward, msgs = reward
+                LOG.info("Reward function returned reward: {}, num_messages: {}".format(reward, len(msgs)))
+                sidecar_process.send_data(msgs)
+
         except Exception as ex:
             raise RewardFunctionError('Reward function exception {}'.format(ex))
         if math.isnan(reward) or math.isinf(reward):

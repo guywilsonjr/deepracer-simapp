@@ -63,7 +63,7 @@ from markov.boto.s3.constants import (HYPERPARAMETER_LOCAL_PATH_FORMAT,
                                       ModelMetadataKeys)
 from markov.boto.s3.s3_client import S3Client
 from std_srvs.srv import Empty, EmptyRequest
-from sidecar_memory.sidecar import sidecar_process
+from sidecar.sidecar import sidecar_process
 
 logger = Logger(__name__, logging.INFO).get_logger()
 
@@ -218,7 +218,7 @@ def rollout_worker(graph_manager, num_workers, rollout_idx, task_parameters, sim
                         print ("Additional evaluation. New Checkpoint: {}, Last Checkpoint: {}".format(new_checkpoint, last_checkpoint))
                         graph_manager.evaluate(EnvironmentSteps(1))
                     else:
-                        time.sleep(2)
+                        time.sleep(5)
                     new_checkpoint = data_store.get_coach_checkpoint_number('agent')
 
                 # Save the mp4 for Robo+Sage jobs
@@ -363,12 +363,7 @@ def main():
                                    local_path=MODEL_METADATA_LOCAL_PATH_FORMAT.format('agent'))
     model_metadata_info = model_metadata.get_model_metadata_info()
     version = model_metadata_info[ModelMetadataKeys.VERSION.value]
-    hyperparameters = Hyperparameters(
-        bucket=args.s3_bucket,
-        s3_key=get_s3_key(args.s3_prefix, HYPERPARAMETER_S3_POSTFIX),
-        region_name=args.aws_region,
-        s3_endpoint_url=args.s3_endpoint_url,
-        local_path=HYPERPARAMETER_LOCAL_PATH_FORMAT.format('agent'))
+
 
     agent_config = {
         'model_metadata': model_metadata,
@@ -488,7 +483,11 @@ def main():
 
     # Download hyperparameters from SageMaker shared s3 bucket
     # TODO: replace 'agent' with name of each agent
-
+    hyperparameters = Hyperparameters(bucket=args.s3_bucket,
+                                      s3_key=get_s3_key(args.s3_prefix, HYPERPARAMETER_S3_POSTFIX),
+                                      region_name=args.aws_region,
+                                      s3_endpoint_url=args.s3_endpoint_url,
+                                      local_path=HYPERPARAMETER_LOCAL_PATH_FORMAT.format('agent'))
     sm_hyperparams_dict = hyperparameters.get_hyperparameters_dict()
 
     enable_domain_randomization = utils.str2bool(rospy.get_param('ENABLE_DOMAIN_RANDOMIZATION', False))

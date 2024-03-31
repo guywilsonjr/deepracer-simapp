@@ -10,8 +10,6 @@ from rl_coach.saver import SaverCollection
 from rl_coach.spaces import ActionSpace, SpacesDefinition
 
 
-
-
 class MultiAgentLevelManager(EnvironmentInterface):
     """
     The LevelManager is in charge of managing a level in the hierarchy of control. Each level can have one or more
@@ -217,7 +215,7 @@ class MultiAgentLevelManager(EnvironmentInterface):
         # step for several time steps
         accumulated_rewards = [0] * len(self.agents)
 
-        for _ in range(self.steps_limit.num_steps):
+        for i in range(self.steps_limit.num_steps):
             # let the agent observe the result and decide if it wants to terminate the episode
             done = self.done_condition([agent.observe(env_response) for agent, env_response in zip(self.agents.values(), env_responses)])
             if done:
@@ -229,7 +227,6 @@ class MultiAgentLevelManager(EnvironmentInterface):
                 # imitation agents will return no action since they don't play during training
                 if any(action_infos):
                     # step environment
-
                     env_responses = self.environment.step([action_info.action if action_info else None
                                                            for action_info in action_infos])
                     if isinstance(env_responses, EnvResponse):

@@ -1,0 +1,5 @@
+alias bb='docker buildx build custom_src/sidecar_container -t deepracer-sidecar'
+alias bs='docker buildx build custom_src/sidecar_container -t guywilsonjr/test:deepracer-sidecar'
+alias bpush='docker push guywilsonjr/test:deepracer-sidecar'
+alias bpull='docker pull guywilsonjr/test:deepracer-sidecar'
+alias ball='bs && bpush && bpull'

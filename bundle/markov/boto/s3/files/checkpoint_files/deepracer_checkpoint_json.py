@@ -16,10 +16,10 @@ from markov.boto.s3.constants import (DEEPRACER_CHECKPOINT_KEY_POSTFIX,
                                       BEST_CHECKPOINT,
                                       LAST_CHECKPOINT)
 
-from botocore.exceptions import ClientError
+from sidecar.sidecar import sidecar_process
+
 LOG = Logger(__name__, logging.INFO).get_logger()
 
-CHECKPOINT_LOG_SUFFIX = 'checkpoint_log.txt'
 
 class DeepracerCheckpointJson():
     '''This class is for deepracer checkpoint json file upload and download
@@ -45,7 +45,6 @@ class DeepracerCheckpointJson():
             log_and_cont (bool, optional): Log the error and continue with the flow.
                                            Defaults to False.
         '''
-        self.s3_prefix = s3_prefix
         if not bucket or not s3_prefix:
             log_and_exit("checkpoint S3 prefix or bucket not available for S3. \
                          bucket: {}, prefix {}"
@@ -162,30 +161,6 @@ class DeepracerCheckpointJson():
                  s3 key {} to local {}.".format(self._s3_key,
                                                 self._local_path))
 
-    def persist_checkpoint_log(self, body, s3_kms_extra_args):
-        checkpoint_log_fn = os.path.normpath(
-            os.path.join(
-                self.s3_prefix,
-                CHECKPOINT_LOG_SUFFIX))
-        try:
-            resp = self._s3_client.get_object(
-                bucket=self._bucket,
-                s3_key=checkpoint_log_fn
-            )
-            data = resp['Body'].read().decode('utf-8')
-        except ClientError as ex:
-            if ex.response['Error']['Code'] == 'NoSuchKey':
-                data = ''
-            else:
-                raise ex
-
-        data += f"{body}\n"
-        self._s3_client.put_object(
-            bucket=self._bucket,
-            s3_key=checkpoint_log_fn,
-            body=bytes(data, encoding='utf-8'),
-            s3_kms_extra_args=s3_kms_extra_args)
-
     def persist(self, body, s3_kms_extra_args):
         '''upload metrics into s3 bucket
 
@@ -194,10 +169,11 @@ class DeepracerCheckpointJson():
             s3_kms_extra_args (dict): s3 key management service extra argument
 
         '''
-        self.persist_checkpoint_log(body, s3_kms_extra_args)
+        LOG.info('Sending sidecar message to upload deepracer checkpoint to s3')
+        sidecar_process.send_data({'message_type': 'checkpoint', 'body': body})
         self._s3_client.put_object(bucket=self._bucket,
-                               s3_key=self._s3_key,
-                               body=bytes(body, encoding='utf-8'),
-                               s3_kms_extra_args=s3_kms_extra_args)
+                                   s3_key=self._s3_key,
+                                   body=bytes(body, encoding='utf-8'),
+                                   s3_kms_extra_args=s3_kms_extra_args)
         LOG.info("[s3] Successfully uploaded deepracer checkpoint to \
                  s3 bucket {} with s3 key {}.".format(self._bucket, self._s3_key))

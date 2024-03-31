@@ -11,7 +11,7 @@ from rl_coach.environments.environment import LevelSelection
 from rl_coach.spaces import ActionSpace, ObservationSpace, RewardSpace, StateSpace
 from rl_coach.utils import force_list
 
-from sidecar_memory.sidecar import sidecar_process
+from sidecar.sidecar import sidecar_process
 
 
 class MultiAgentEnvironmentParameters(Parameters):

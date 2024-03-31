@@ -1,10 +1,7 @@
 '''This module defines the interface between rl coach and the agents enviroment'''
 from __future__ import print_function
-
-import logging
 from typing import List, Union, Dict
 
-from markov.log_handler.logger import Logger
 from rl_coach.base_parameters import AgentParameters, VisualizationParameters
 from rl_coach.environments.environment import LevelSelection
 from rl_coach.filters.filter import NoInputFilter, NoOutputFilter
@@ -20,9 +17,6 @@ from markov.log_handler.exception_handler import log_and_exit
 from markov.log_handler.constants import (SIMAPP_SIMULATION_WORKER_EXCEPTION,
                                           SIMAPP_EVENT_ERROR_CODE_500)
 from markov.domain_randomizations.randomizer_manager import RandomizerManager
-
-
-LOG = Logger(__name__, logging.INFO).get_logger()
 
 # Max number of steps to allow per episode
 MAX_STEPS = 100000
