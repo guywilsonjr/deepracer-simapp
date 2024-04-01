@@ -1,14 +1,12 @@
 import asyncio
 import os
 
-import logging
+from utils import logger
 from datetime import datetime
 from multiprocessing import SimpleQueue
 from typing import Optional
 
 
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
 # Define the path for the Unix socket
 sock_path = os.environ['SIDECAR_SOCKET_PATH']
 
@@ -26,7 +24,7 @@ class MyProtocol(asyncio.Protocol):
         return None
 
     def data_received(self, data: bytes) -> None:
-        print("{} Received: {} bytes".format(datetime.now().isoformat(), len(data)))
+        logger.info("{} Received: {} bytes".format(datetime.utcnow().isoformat(), len(data)))
         self.message_queue.put(data)
         if self.transport:
             self.transport.close()

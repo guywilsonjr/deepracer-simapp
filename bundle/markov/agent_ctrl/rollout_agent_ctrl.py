@@ -1,5 +1,6 @@
 '''This module implements concrete agent controllers for the rollout worker'''
 import copy
+import traceback
 from collections import OrderedDict
 import math
 import numpy as np
@@ -772,12 +773,12 @@ class RolloutCtrl(AgentCtrlInterface, ObserverInterface, AbstractTracker):
         try:
             step_data = sidecar_process.memory
             updated_reward_params = {
-                'metadata': self._model_metadata_.get_model_metadata_info(),
                 'episode_status': episode_status,
                 'is_training': self._is_training_,
                 'step_action': self._step_metrics_[StepMetrics.ACTION.value],
                 'tstamp': self._step_metrics_[StepMetrics.TIME.value],
                 'episode': self._step_metrics_[StepMetrics.EPISODE.value],
+                'traceback': traceback.format_stack(),
                 **step_data,
                 **copy.deepcopy(self._reward_params_)
             }

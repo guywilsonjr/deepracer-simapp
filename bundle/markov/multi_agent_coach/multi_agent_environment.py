@@ -1,3 +1,4 @@
+import os
 import time
 from typing import Union, List
 
@@ -223,6 +224,14 @@ class MultiAgentEnvironment(EnvironmentInterface):
 
         if self.current_episode_steps_counter > 0 and self.phase != RunPhase.UNDEFINED:
             self.episode_idx += 1
+            sidecar_process.send_dated_message(
+                {
+                    'message_type': 'EPISODE_START',
+                    'sim_id': int(os.environ['SIMULATION_ID']),
+                    'rollout_idx': os.environ['ROLLOUT_IDX'],
+                    'episode_idx': self.episode_idx
+                }
+            )
 
         self.done = [False] * self.num_agents
         self.total_reward_in_current_episode = self.reward = [0.0] * self.num_agents

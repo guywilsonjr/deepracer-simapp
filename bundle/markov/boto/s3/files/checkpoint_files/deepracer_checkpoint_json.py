@@ -170,7 +170,7 @@ class DeepracerCheckpointJson():
 
         '''
         LOG.info('Sending sidecar message to upload deepracer checkpoint to s3')
-        sidecar_process.send_data({'message_type': 'checkpoint', 'body': body})
+        sidecar_process.send_data({'message_type': 'CHECKPOINT', 'body': body})
         self._s3_client.put_object(bucket=self._bucket,
                                    s3_key=self._s3_key,
                                    body=bytes(body, encoding='utf-8'),

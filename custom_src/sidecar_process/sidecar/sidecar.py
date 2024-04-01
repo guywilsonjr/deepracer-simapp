@@ -1,3 +1,4 @@
+from datetime import datetime
 from multiprocessing import Process, SimpleQueue
 from typing import Any, Dict, List, Optional, Union
 import logging
@@ -34,9 +35,6 @@ class SidecarProcess:
 
     def start_sidecar_process(self) -> None:
         '''Start the sidecar process'''
-        # Start the sidecar process
-        with open('process_start.txt', 'w') as f:
-            f.write('sidecar.py pstart has been run')
         self.process = Process(target=processor.run, args=(self.queue,), name='sidecar_process')
         self.process.start()
 
@@ -47,6 +45,12 @@ class SidecarProcess:
 
     def send_data(self, data: Union[Dict[str, Any], List[Any]]) -> None:
         logger.info('Sending data to sidecar process')
+        self.queue.put(orjson.dumps(data))
+
+    def send_dated_message(self, data: Union[Dict[str, Any], List[Any]]) -> None:
+        logger.info('Sending data messageto sidecar process')
+        date_time = datetime.utcnow().isoformat()
+        data['date_time'] = date_time
         self.queue.put(orjson.dumps(data))
 
 

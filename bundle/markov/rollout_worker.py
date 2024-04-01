@@ -172,10 +172,15 @@ def rollout_worker(graph_manager, num_workers, rollout_idx, task_parameters, sim
     act_steps = EnvironmentEpisodes(act_steps)
 
     configure_environment_randomizer()
-    sidecar_process.start_sidecar_process()
+
     for rollout_step in range((graph_manager.improve_steps / act_steps.num_steps).num_steps):
         sidecar_process.memory['rollout_step'] = rollout_step
-        sidecar_process.memory['source'] = 'rollout_worker'
+        sidecar_process.send_dated_message({
+                'message_type': 'ROLLOUT_START',
+                'rollout_step': rollout_step,
+                'rollout_idx': rollout_idx,
+                'sim_id': int(os.environ['SIMULATION_ID'])
+            })
         # Collect profiler information only IS_PROFILER_ON is true
         with utils.Profiler(s3_bucket=PROFILER_S3_BUCKET, s3_prefix=PROFILER_S3_PREFIX,
                             output_local_path=ROLLOUT_WORKER_PROFILER_PATH, enable_profiling=IS_PROFILER_ON, s3_endpoint_url=s3_endpoint_url):
@@ -539,7 +544,16 @@ def main():
 
     task_parameters = TaskParameters()
     task_parameters.checkpoint_restore_path = args.checkpoint_dir
-
+    sidecar_process.start_sidecar_process()
+    sidecar_process.send_dated_message(
+        {
+            'message_type': 'WORKER_START',
+            'rollout_idx': int(args.rollout_idx),
+            'model_metadata': model_metadata_info,
+            'hyperparameters': sm_hyperparams_dict,
+            'sim_id': int(os.environ['SIMULATION_ID'])
+        })
+    sidecar_process.memory.update({'sim_id': int(os.environ['SIMULATION_ID']), 'rollout_idx': args.rollout_idx, 'metadata': model_metadata_info})
     rollout_worker(
         graph_manager=graph_manager,
         num_workers=args.num_workers,

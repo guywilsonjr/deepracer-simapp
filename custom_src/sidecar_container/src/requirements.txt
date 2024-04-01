@@ -2,4 +2,5 @@ fastapi
 uvicorn
 orjson
 aiohttp
-
+aioboto3
+aws-lambda-powertools[tracer]
