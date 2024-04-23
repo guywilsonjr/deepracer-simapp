@@ -207,7 +207,7 @@ class XYPixelLoc(Enum):
     RACE_TYPE_EVAL_LOC = (10, 445)
     RACE_TYPE_RACE_LOC = (10, 455)
     AWS_DEEPRACER_WATER_MARK_LOC = (445, 450)
-    TRAINING_PHASE_LOC = (40, 400)
+    TRAINING_PHASE_LOC = (40, 40)
     TRACK_IMG_WITH_OFFSET_LOC = (0, 20)
     TRACK_IMG_WITHOUT_OFFSET_LOC = (0, 0)
     # F1 related pixel
@@ -296,7 +296,7 @@ class FrameQueueData(Enum):
 
 
 # Agent Video editor constants
-MAX_FRAMES_IN_QUEUE = 1500
+MAX_FRAMES_IN_QUEUE = 15000
 KVS_PUBLISH_PERIOD = 1.0/15.0
 QUEUE_WAIT_TIME = 10 # In seconds
 

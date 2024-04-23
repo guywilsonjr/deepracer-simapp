@@ -16,7 +16,7 @@ from markov.boto.s3.constants import (DEEPRACER_CHECKPOINT_KEY_POSTFIX,
                                       BEST_CHECKPOINT,
                                       LAST_CHECKPOINT)
 
-from sidecar.sidecar import sidecar_process
+from sidecar import sidecar_process
 
 LOG = Logger(__name__, logging.INFO).get_logger()
 
@@ -170,7 +170,7 @@ class DeepracerCheckpointJson():
 
         '''
         LOG.info('Sending sidecar message to upload deepracer checkpoint to s3')
-        sidecar_process.send_data({'message_type': 'CHECKPOINT', 'body': body})
+        sidecar_process.send_dated_message({'message_type': 'CHECKPOINT', 'body': json.loads(body), **sidecar_process.memory})
         self._s3_client.put_object(bucket=self._bucket,
                                    s3_key=self._s3_key,
                                    body=bytes(body, encoding='utf-8'),

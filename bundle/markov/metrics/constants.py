@@ -116,6 +116,13 @@ class Mp4VideoMetrics(Enum):
     OBJECT_LOCATIONS = 'object_locations'
     EPISODE_STATUS = 'episode_status'
     PAUSE_DURATION = 'pause_duration'
+    REWARD = 'reward'
+    STEPS = 'steps'
+    EPISODE = 'episode'
+    ROLLOUT_STEP = 'rollout_step'
+    ROLLOUT_IDX = 'rollout_idx'
+    SIM_ID = 'sim_id'
+    SEQUENCE = 'sequence'
 
     @classmethod
     def get_empty_dict(cls):

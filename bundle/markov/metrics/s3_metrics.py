@@ -5,7 +5,7 @@ import time
 import json
 import logging
 import os
-from collections import OrderedDict
+from collections import defaultdict, OrderedDict
 import statistics
 import boto3
 import botocore
@@ -30,6 +30,7 @@ from markov.track_geom.track_data import TrackData
 from markov.boto.s3.constants import (SIMTRACE_EVAL_LOCAL_PATH_FORMAT,
                                       SIMTRACE_TRAINING_LOCAL_PATH_FORMAT)
 from markov.boto.s3.files.metrics import Metrics
+from sidecar import sidecar_process
 
 LOGGER = Logger(__name__, logging.INFO).get_logger()
 
@@ -53,6 +54,12 @@ def write_simtrace_to_local_file(file_path: str, metrics_data: OrderedDict):
     """
     assert isinstance(metrics_data, OrderedDict), 'SimTrace metrics data argument must be of type OrderedDict'
     if metrics_data is not None:
+        sidecar_process.send_dated_message({
+            'message_type': 'SIM_TRACE_LOG',
+            'rollout_step': sidecar_process.memory['rollout_step'],
+            **metrics_data,
+            **sidecar_process.memory
+        })
         if not os.path.exists(file_path):
             with open(file_path, 'w') as filepointer:
                 filepointer.write(','.join([str(key) for key, value in metrics_data.items()])+"\n")
@@ -70,6 +77,7 @@ class TrainingMetrics(MetricsInterface, ObserverInterface, AbstractTracker):
            run_phase_sink - Sink to recieve notification of a change in run phase
            use_model_picker - Flag to whether to use model picker or not.
         '''
+        self.video_metric_counters = defaultdict(int)
         self._agent_name_ = agent_name
         self._deepracer_checkpoint_json = deepracer_checkpoint_json
         self._s3_metrics = Metrics(bucket=s3_dict_metrics[MetricsS3Keys.METRICS_BUCKET.value],
@@ -147,16 +155,28 @@ class TrainingMetrics(MetricsInterface, ObserverInterface, AbstractTracker):
         self._metrics_.append(training_metric)
 
     def upload_episode_metrics(self):
-        json_metrics = json.dumps({'metrics': self._metrics_,
-                                   'version': METRICS_VERSION,
-                                   'best_model_metric': self._best_model_metric_type.value})
-        self._s3_metrics.persist(body=json_metrics,
-                                 s3_kms_extra_args=get_s3_kms_extra_args())
+        dict_metrics = {
+            'metrics': self._metrics_,
+            'version': METRICS_VERSION,
+            'episode': self._episode_,
+            'best_model_metric': self._best_model_metric_type.value
+        }
+        json_metrics = json.dumps(dict_metrics)
+        self._s3_metrics.persist(body=json_metrics, s3_kms_extra_args=get_s3_kms_extra_args())
         if self._is_eval_:
             if self._best_model_metric_type == BestModelMetricType.REWARD:
                 self._current_eval_best_model_metric_list_.append(self._episode_reward_)
             else:
                 self._current_eval_best_model_metric_list_.append(self._progress_)
+
+        sidecar_process.send_dated_message({
+            'message_type': 'EPISODE_FINISH',
+            'episode_reward': self._episode_reward_,
+            'progress': self._progress_,
+            'is_eval': self._is_eval_,
+            **dict_metrics,
+            **sidecar_process.memory
+        })
 
     def upload_step_metrics(self, metrics):
         self._progress_ = metrics[StepMetrics.PROG.value]
@@ -215,6 +235,7 @@ class TrainingMetrics(MetricsInterface, ObserverInterface, AbstractTracker):
 
     def update_mp4_video_metrics(self, metrics):
         agent_x, agent_y = metrics[StepMetrics.X.value], metrics[StepMetrics.Y.value]
+
         self._video_metrics[Mp4VideoMetrics.LAP_COUNTER.value] = 0
         self._video_metrics[Mp4VideoMetrics.COMPLETION_PERCENTAGE.value] = self._progress_
         # For continuous race, MP4 video will display the total reset counter for the entire race
@@ -238,6 +259,23 @@ class TrainingMetrics(MetricsInterface, ObserverInterface, AbstractTracker):
             object_locations.append(point)
         self._video_metrics[Mp4VideoMetrics.OBJECT_LOCATIONS.value] = object_locations
 
+        sim_id = int(sidecar_process.memory['sim_id'])
+        rollout_idx = int(sidecar_process.memory['rollout_idx'])
+        rollout_step = int(sidecar_process.memory['rollout_step'])
+        episode = int(metrics[StepMetrics.EPISODE.value])
+        steps = int(metrics[StepMetrics.STEPS.value])
+        counter_key = f'{sim_id}-{rollout_idx}-{rollout_step}-{episode}-{steps}'
+        sequence = self.video_metric_counters[counter_key]
+        self.video_metric_counters[counter_key] = sequence + 1
+        self._video_metrics[Mp4VideoMetrics.REWARD.value] = metrics[StepMetrics.REWARD.value]
+        self._video_metrics[Mp4VideoMetrics.STEPS.value] = int(metrics[StepMetrics.STEPS.value])
+        self._video_metrics[Mp4VideoMetrics.EPISODE.value] = int(metrics[StepMetrics.EPISODE.value])
+        self._video_metrics[Mp4VideoMetrics.ROLLOUT_STEP.value] = int(sidecar_process.memory['rollout_step'])
+        self._video_metrics[Mp4VideoMetrics.ROLLOUT_IDX.value] = int(sidecar_process.memory['rollout_idx'])
+        self._video_metrics[Mp4VideoMetrics.SIM_ID.value] = int(sidecar_process.memory['sim_id'])
+        self._video_metrics[Mp4VideoMetrics.SEQUENCE.value] = sequence
+
+
     def _handle_get_video_metrics(self, req):
         return VideoMetricsSrvResponse(self._video_metrics[Mp4VideoMetrics.LAP_COUNTER.value],
                                        self._video_metrics[Mp4VideoMetrics.COMPLETION_PERCENTAGE.value],
@@ -251,7 +289,15 @@ class TrainingMetrics(MetricsInterface, ObserverInterface, AbstractTracker):
                                        self._video_metrics[Mp4VideoMetrics.Y.value],
                                        self._video_metrics[Mp4VideoMetrics.OBJECT_LOCATIONS.value],
                                        self._video_metrics[Mp4VideoMetrics.EPISODE_STATUS.value],
-                                       self._video_metrics[Mp4VideoMetrics.PAUSE_DURATION.value])
+                                       self._video_metrics[Mp4VideoMetrics.PAUSE_DURATION.value],
+                                       self._video_metrics[Mp4VideoMetrics.REWARD.value],
+                                       self._video_metrics[Mp4VideoMetrics.SEQUENCE.value],
+                                       self._video_metrics[Mp4VideoMetrics.STEPS.value],
+                                       self._video_metrics[Mp4VideoMetrics.EPISODE.value],
+                                       self._video_metrics[Mp4VideoMetrics.ROLLOUT_STEP.value],
+                                       self._video_metrics[Mp4VideoMetrics.ROLLOUT_IDX.value],
+                                       self._video_metrics[Mp4VideoMetrics.SIM_ID.value]
+                                       )
 
 
 class EvalMetrics(MetricsInterface, AbstractTracker):
@@ -401,6 +447,7 @@ class EvalMetrics(MetricsInterface, AbstractTracker):
         actual_speed = 0
         cur_time = self._current_sim_time
         agent_x, agent_y = metrics[StepMetrics.X.value], metrics[StepMetrics.Y.value]
+
         if self._agent_xy:
             # Speed = Distance/Time
             delta_time = cur_time - self._prev_step_time
@@ -443,6 +490,12 @@ class EvalMetrics(MetricsInterface, AbstractTracker):
             metrics[StepMetrics.EPISODE_STATUS.value]
         self._video_metrics[Mp4VideoMetrics.PAUSE_DURATION.value] = \
             metrics[StepMetrics.PAUSE_DURATION.value]
+        self._video_metrics[Mp4VideoMetrics.REWARD.value] = metrics[StepMetrics.REWARD.value]
+        self._video_metrics[Mp4VideoMetrics.STEPS.value] = metrics[StepMetrics.STEPS.value]
+        self._video_metrics[Mp4VideoMetrics.EPISODE.value] = metrics[StepMetrics.EPISODE.value]
+        self._video_metrics[Mp4VideoMetrics.ROLLOUT_STEP.value] = sidecar_process.memory['rollout_step']
+        self._video_metrics[Mp4VideoMetrics.ROLLOUT_IDX.value] = sidecar_process.memory['rollout_idx']
+        self._video_metrics[Mp4VideoMetrics.SIM_ID.value] = sidecar_process.memory['sim_id']
 
     def upload_step_metrics(self, metrics):
         metrics[StepMetrics.EPISODE.value] = self._number_of_trials_
@@ -469,7 +522,14 @@ class EvalMetrics(MetricsInterface, AbstractTracker):
                                        self._video_metrics[Mp4VideoMetrics.Y.value],
                                        self._video_metrics[Mp4VideoMetrics.OBJECT_LOCATIONS.value],
                                        self._video_metrics[Mp4VideoMetrics.EPISODE_STATUS.value],
-                                       self._video_metrics[Mp4VideoMetrics.PAUSE_DURATION.value])
+                                       self._video_metrics[Mp4VideoMetrics.PAUSE_DURATION.value],
+                                       self._video_metrics[Mp4VideoMetrics.REWARD.value],
+                                       self._video_metrics[Mp4VideoMetrics.STEPS.value],
+                                       self._video_metrics[Mp4VideoMetrics.EPISODE.value],
+                                       self._video_metrics[Mp4VideoMetrics.ROLLOUT_STEP.value],
+                                       self._video_metrics[Mp4VideoMetrics.ROLLOUT_IDX.value],
+                                       self._video_metrics[Mp4VideoMetrics.SIM_ID.value]
+                                       )
 
     def clear(self):
         """clear all EvalMetrics member variable

@@ -12,3 +12,10 @@ float32 y
 geometry_msgs/Point32[] object_locations
 string episode_status
 float32 pause_duration
+float32 reward
+int32 sequence
+int32 steps
+int32 episode
+int32 rollout_step
+int32 rollout_idx
+int64 sim_id

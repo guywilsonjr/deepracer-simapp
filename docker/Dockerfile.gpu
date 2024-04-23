@@ -100,7 +100,14 @@ COPY ./bundle/rl_coach.patch /opt/rl_coach.patch
 RUN patch -p1 -N --directory=/usr/local/lib/python3.8/dist-packages/ < /opt/rl_coach.patch
 ADD docker/custom_requirements.txt .
 RUN pip3 install -r custom_requirements.txt
-ADD custom_src/sidecar_process /root/.ros/
+ADD custom_src/sidecar_process /sidecar
+
+WORKDIR /sidecar/sidecar
+RUN pip3 install .
+RUN pip3 install pyroscope-io
+
+WORKDIR /opt/install
+
 RUN mkdir /sockets
 ENV SIDECAR_SOCKET_PATH=/sockets/sidecar.sock
 ENV SIDECAR_HTTP_SOCKET_PATH=/sockets/sidecar_http.sock

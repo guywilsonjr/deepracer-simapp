@@ -12,7 +12,7 @@ from rl_coach.environments.environment import LevelSelection
 from rl_coach.spaces import ActionSpace, ObservationSpace, RewardSpace, StateSpace
 from rl_coach.utils import force_list
 
-from sidecar.sidecar import sidecar_process
+from sidecar import sidecar_process
 
 
 class MultiAgentEnvironmentParameters(Parameters):
@@ -58,6 +58,7 @@ class MultiAgentEnvironment(EnvironmentInterface):
         self._last_env_response = [None] * num_agents
         self.last_action = [0] * num_agents
         self.episode_idx = 0
+        sidecar_process.memory['episode_idx'] = self.episode_idx
         self.total_steps_counter = 0
         self.current_episode_steps_counter = 0
         self.last_episode_time = time.time()
@@ -184,7 +185,6 @@ class MultiAgentEnvironment(EnvironmentInterface):
         # act
         self._take_action(action)
 
-        sidecar_process.memory['episode_idx'] = self.episode_idx
         # observe
         self._update_state()
 
@@ -223,15 +223,14 @@ class MultiAgentEnvironment(EnvironmentInterface):
         self.last_episode_time = time.time()
 
         if self.current_episode_steps_counter > 0 and self.phase != RunPhase.UNDEFINED:
-            self.episode_idx += 1
             sidecar_process.send_dated_message(
                 {
-                    'message_type': 'EPISODE_START',
-                    'sim_id': int(os.environ['SIMULATION_ID']),
-                    'rollout_idx': os.environ['ROLLOUT_IDX'],
-                    'episode_idx': self.episode_idx
+                    'message_type': 'EPISODE_IDX_FINISH',
+                    **sidecar_process.memory
                 }
             )
+            self.episode_idx += 1
+            sidecar_process.memory['episode_idx'] = self.episode_idx
 
         self.done = [False] * self.num_agents
         self.total_reward_in_current_episode = self.reward = [0.0] * self.num_agents

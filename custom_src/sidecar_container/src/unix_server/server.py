@@ -3,7 +3,7 @@ import os
 
 from utils import logger
 from datetime import datetime
-from multiprocessing import SimpleQueue
+from multiprocessing import Process, SimpleQueue
 from typing import Optional
 
 
@@ -24,7 +24,7 @@ class MyProtocol(asyncio.Protocol):
         return None
 
     def data_received(self, data: bytes) -> None:
-        logger.info("{} Received: {} bytes".format(datetime.utcnow().isoformat(), len(data)))
+        logger.debug("{} Received: {} bytes".format(datetime.utcnow().isoformat(), len(data)))
         self.message_queue.put(data)
         if self.transport:
             self.transport.close()
@@ -32,26 +32,34 @@ class MyProtocol(asyncio.Protocol):
     def connection_lost(self, exc: Optional[Exception]) -> None:
         self.on_con_lost.set_result(True)
 
+class SidecarUnixServer:
+    def __init__(self, message_queue: SimpleQueue) -> None:
+        self.message_queue = message_queue
 
-async def async_main(socket_path: str, message_queue: SimpleQueue) -> None:
-    # Ensure the socket does not already exist
-    logger.info(f"Removing existing socket at {socket_path}")
-    try:
-        os.unlink(socket_path)
-    except OSError:
-        if os.path.exists(socket_path):
-            raise
+    async def handle_connection(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        data = await reader.read()
+        self.message_queue.put(data)
+        writer.close()
+        await writer.wait_closed()
 
-    # Create the asyncio event loop
-    loop = asyncio.get_running_loop()
-    # Create the Unix socket server
-    logger.info(f"Creating server on {socket_path}")
-    server = await loop.create_unix_server(lambda: MyProtocol(loop, message_queue), path=socket_path, start_serving=True)
+    async def async_main(self, socket_path: str) -> None:
 
-    async with server:
-        logger.info(f"Serving on {socket_path}")
-        await server.serve_forever()
+        # Create the asyncio event loop
+        # Create the Unix socket server
+        logger.info(f"Creating server on {socket_path}")
+        server = await asyncio.start_unix_server(
+            client_connected_cb=lambda reader, writer: self.handle_connection(reader, writer),
+            limit=2 ** 32,
+            backlog=2 ** 16,
+            path=socket_path
+        )
+
+        async with server:
+            logger.info(f"Serving on {socket_path}")
+            await server.serve_forever()
 
 
 def main(message_queue: SimpleQueue):
-    asyncio.run(async_main(sock_path, message_queue))
+    server = SidecarUnixServer(message_queue)
+    asyncio.run(server.async_main(sock_path))
+

@@ -3,4 +3,9 @@ uvicorn
 orjson
 aiohttp
 aioboto3
+pillow
 aws-lambda-powertools[tracer]
+uvloop
+httptools
+numpy
+pyroscope-io

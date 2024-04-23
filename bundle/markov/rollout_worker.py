@@ -14,6 +14,7 @@ import time
 import rospy
 import botocore
 
+from markov.track_geom.track_data import TrackData
 from rl_coach.base_parameters import TaskParameters, DistributedCoachSynchronizationType, RunType
 from rl_coach.checkpoint import CheckpointStateReader
 from rl_coach.core_types import RunPhase, EnvironmentSteps
@@ -63,7 +64,19 @@ from markov.boto.s3.constants import (HYPERPARAMETER_LOCAL_PATH_FORMAT,
                                       ModelMetadataKeys)
 from markov.boto.s3.s3_client import S3Client
 from std_srvs.srv import Empty, EmptyRequest
-from sidecar.sidecar import sidecar_process
+from sidecar import sidecar_ process
+import pyroscope
+
+pyroscope.configure(
+    application_name="rollout_worker",  # replace this with some name for your application
+    server_address="http://pyroscope:4040",  # replace this with the address of your Pyroscope server
+    detect_subprocesses=True,  # detect subprocesses started by the main process; default is False
+    gil_only=False,  # only include traces for threads that are holding on to the Global Interpreter Lock; default is True
+    enable_logging=True,  # does enable logging facility; default is False
+    report_pid=True,
+    report_thread_id=True,
+    report_thread_name=True,
+)
 
 logger = Logger(__name__, logging.INFO).get_logger()
 
@@ -199,6 +212,7 @@ def rollout_worker(graph_manager, num_workers, rollout_idx, task_parameters, sim
                     == DistributedCoachSynchronizationType.SYNC:
                 unpause_physics(EmptyRequest())
                 is_save_mp4_enabled = rospy.get_param('MP4_S3_BUCKET', None) and rollout_idx == 0
+                logger.info("Is save mp4 enabled: {}".format(is_save_mp4_enabled))
                 if is_save_mp4_enabled:
                     subscribe_to_save_mp4(EmptyRequest())
                 if rollout_idx == 0:
@@ -545,15 +559,21 @@ def main():
     task_parameters = TaskParameters()
     task_parameters.checkpoint_restore_path = args.checkpoint_dir
     sidecar_process.start_sidecar_process()
+    track_data = TrackData.get_instance()
     sidecar_process.send_dated_message(
         {
             'message_type': 'WORKER_START',
             'rollout_idx': int(args.rollout_idx),
             'model_metadata': model_metadata_info,
             'hyperparameters': sm_hyperparams_dict,
-            'sim_id': int(os.environ['SIMULATION_ID'])
+            'sim_id': int(os.environ['SIMULATION_ID']),
+            'center_ring': track_data.get_way_pnts(),
+            'inner_lane': list(track_data._inner_lane_forward_.coords),
+            'outer_lane': list(track_data._outer_lane_forward_.coords),
+            'inner_border': list(track_data._inner_border_forward_.coords),
+            'outer_border': list(track_data._outer_border_forward_.coords)
         })
-    sidecar_process.memory.update({'sim_id': int(os.environ['SIMULATION_ID']), 'rollout_idx': args.rollout_idx, 'metadata': model_metadata_info})
+    sidecar_process.memory.update({'sim_id': int(os.environ['SIMULATION_ID']), 'rollout_idx': args.rollout_idx, 'metadata': model_metadata_info, 'hyperparameters': sm_hyperparams_dict})
     rollout_worker(
         graph_manager=graph_manager,
         num_workers=args.num_workers,
@@ -564,6 +584,7 @@ def main():
         unpause_physics=unpause_physics,
         s3_endpoint_url=args.s3_endpoint_url
     )
+
 
 if __name__ == '__main__':
     try:

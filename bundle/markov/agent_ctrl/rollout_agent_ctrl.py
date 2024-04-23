@@ -18,6 +18,7 @@ from markov.agent_ctrl.utils import (set_reward_and_metrics,
                                      send_action, load_action_space, get_wheel_radius,
                                      get_normalized_progress, Logger,
                                      get_relative_pos)
+from markov.metrics.s3_metrics import TrainingMetrics
 from markov.track_geom.constants import (AgentPos, TrackNearDist, ObstacleDimensions, ParkLocation)
 from markov.track_geom.track_data import FiniteDifference, TrackData
 from markov.track_geom.utils import euler_to_quaternion, pose_distance, apply_orientation
@@ -42,7 +43,7 @@ from markov.boto.s3.constants import ModelMetadataKeys
 from markov.virtual_event.constants import PAUSE_TIME_BEFORE_START
 
 from rl_coach.core_types import RunPhase
-from sidecar.sidecar import sidecar_process
+from sidecar import sidecar_process
 
 LOG = Logger(__name__, logging.INFO).get_logger()
 
@@ -716,6 +717,8 @@ class RolloutCtrl(AgentCtrlInterface, ObserverInterface, AbstractTracker):
             self._reset_rules_manager.reset()
         if episode_status == EpisodeStatus.TIME_UP.value:
             self._metrics.append_episode_metrics(is_complete=False)
+
+        
         self._metrics.update_mp4_video_metrics(self._step_metrics_)
         return reward, done, self._step_metrics_
 
@@ -771,23 +774,13 @@ class RolloutCtrl(AgentCtrlInterface, ObserverInterface, AbstractTracker):
         self._pause_duration = 0.0
         current_car_pose = self._track_data_.get_object_pose(self._agent_name_)
         try:
-            step_data = sidecar_process.memory
+            sidecar_data = sidecar_process.memory
             updated_reward_params = {
-                'episode_status': episode_status,
-                'is_training': self._is_training_,
-                'step_action': self._step_metrics_[StepMetrics.ACTION.value],
-                'tstamp': self._step_metrics_[StepMetrics.TIME.value],
-                'episode': self._step_metrics_[StepMetrics.EPISODE.value],
-                'traceback': traceback.format_stack(),
-                **step_data,
+                'tstamp': self._current_sim_time,
+                **sidecar_data,
                 **copy.deepcopy(self._reward_params_)
             }
             reward = self._reward_(updated_reward_params)
-            if isinstance(reward, tuple):
-                reward, msgs = reward
-                LOG.info("Reward function returned reward: {}, num_messages: {}".format(reward, len(msgs)))
-                sidecar_process.send_data(msgs)
-
         except Exception as ex:
             raise RewardFunctionError('Reward function exception {}'.format(ex))
         if math.isnan(reward) or math.isinf(reward):

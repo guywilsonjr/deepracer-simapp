@@ -1,9 +1,13 @@
 """ Each race type has its own metrics to be popullated on the image.
 This module takes care of addressing each race type editting of images.
 """
+import asyncio
 import logging
+from io import BytesIO
+
 import cv2
 import numpy as np
+from PIL import Image
 
 from markov.log_handler.logger import Logger
 from markov.utils import get_racecar_idx
@@ -13,6 +17,7 @@ from mp4_saving.constants import (RaceCarColorToRGB, SCALE_RATIO, IconographicIm
 from mp4_saving import utils
 from mp4_saving.image_editing_interface import ImageEditingInterface
 
+from sidecar import sidecar_process
 LOG = Logger(__name__, logging.INFO).get_logger()
 
 class TrainingImageEditing(ImageEditingInterface):
@@ -27,7 +32,7 @@ class TrainingImageEditing(ImageEditingInterface):
         racecar_index = get_racecar_idx(racecar_name)
         self.racecar_index = racecar_index if racecar_index else 0
         # Store the font which we will use to write the phase with
-        self.training_phase_font = utils.get_font('Amazon_Ember_RgIt', 35)
+        self.training_phase_font = utils.get_font('Amazon_Ember_RgIt', 15)
 
         # The track image as iconography
         self.track_icongraphy_img = utils.get_track_iconography_image()
@@ -60,11 +65,9 @@ class TrainingImageEditing(ImageEditingInterface):
                                               self.one_minus_gradient_alpha)
 
         # Add the label that lets the user know the training phase
-        major_cv_image = utils.write_text_on_image(image=major_cv_image, text=cur_training_phase,
-                                                   loc=XYPixelLoc.TRAINING_PHASE_LOC.value,
-                                                   font=self.training_phase_font, font_color=None,
-                                                   font_shadow_color=RaceCarColorToRGB.Black.value)
+        major_cv_image = utils.write_text_on_image(image=major_cv_image, text=cur_training_phase, loc=XYPixelLoc.TRAINING_PHASE_LOC.value, font=self.training_phase_font, font_color=None,                                                  font_shadow_color=RaceCarColorToRGB.Black.value)
         major_cv_image = cv2.cvtColor(major_cv_image, cv2.COLOR_RGB2BGRA)
+
         return major_cv_image
 
     def _plot_track_on_gradient(self, gradient_img):
@@ -115,6 +118,7 @@ class TrainingImageEditing(ImageEditingInterface):
     def edit_image(self, major_cv_image, metric_info):
         mp4_video_metrics_info = metric_info[FrameQueueData.AGENT_METRIC_INFO.value]
         cur_training_phase = metric_info[FrameQueueData.TRAINING_PHASE.value]
+        sidecar_process.prepare_and_send_image_message(mp4_video_metrics_info, major_cv_image)
 
         major_cv_image = self._edit_major_cv_image(major_cv_image, cur_training_phase)
         major_cv_image = self._plot_agents_on_major_cv_image(major_cv_image, mp4_video_metrics_info)

@@ -1,3 +1,4 @@
 pydantic
-tenacity
 orjson
+aiohttp
+aws-lambda-powertools[tracer]

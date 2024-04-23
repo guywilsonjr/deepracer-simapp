@@ -5,7 +5,8 @@ import logging
 
 from markov.log_handler.logger import Logger
 from markov.boto.s3.s3_client import S3Client
-from markov.boto.s3.constants import SIMTRACE_VIDEO_POSTFIX_DICT
+from markov.boto.s3.constants import SIMTRACE_VIDEO_POSTFIX_DICT, SimtraceVideoNames
+
 
 LOG = Logger(__name__, logging.INFO).get_logger()
 

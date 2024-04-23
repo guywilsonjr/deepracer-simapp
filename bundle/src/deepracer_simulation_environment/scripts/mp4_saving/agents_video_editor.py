@@ -36,6 +36,23 @@ from mp4_saving.training_image_editing import TrainingImageEditing
 from mp4_saving.f1_image_editing import F1ImageEditing
 from mp4_saving import utils
 from mp4_saving.save_to_mp4 import SaveToMp4
+import pyroscope
+
+from sidecar import sidecar_process
+
+
+pyroscope.configure(
+    application_name="agents_video_editor",  # replace this with some name for your application
+    server_address="http://pyroscope:4040",  # replace this with the address of your Pyroscope server
+    detect_subprocesses=True,  # detect subprocesses started by the main process; default is False
+    oncpu=False,  # report cpu time only; default is True
+    gil_only=False,  # only include traces for threads that are holding on to the Global Interpreter Lock; default is True
+    enable_logging=True,  # does enable logging facility; default is False
+    report_pid=True,
+    report_thread_id=True,
+    report_thread_name=True,
+)
+sidecar_process.start_sidecar_process()
 
 LOG = Logger(__name__, logging.INFO).get_logger()
 
@@ -171,6 +188,7 @@ class AgentsVideoEditor(object):
         self.save_to_mp4_obj.unsubscribe_to_save_mp4(camera_topics_stop_immediately)
         LOG.info("Waiting to flush the Mp4 queue for racecar_{}...".format(self.racecar_index))
         while not self._mp4_queue[self.racecar_index].empty():
+            LOG.info("Flushing the Mp4 queue of size: {}. Sleeping for 1 s".format(self._mp4_queue[self.racecar_index].qsize()))
             time.sleep(1)
         LOG.info("Done flushing the Mp4 queue for racecar_{}...".format(self.racecar_index))
         self.save_to_mp4_obj.unsubscribe_to_save_mp4(camera_topics_stop_post_empty_queue)

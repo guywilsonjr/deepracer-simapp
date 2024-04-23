@@ -3,11 +3,13 @@
 import errno
 import os
 import logging
+
 import numpy as np
 import cv2
 import rospkg
 import rospy
 from PIL import ImageFont, ImageDraw, Image
+
 from markov.rospy_wrappers import ServiceProxyWrapper
 from markov.log_handler.logger import Logger
 from markov.log_handler.exception_handler import log_and_exit
@@ -142,6 +144,7 @@ def write_text_on_image(image, text, loc, font, font_color, font_shadow_color):
     draw = ImageDraw.Draw(pil_im)
     draw_shadow(draw, text, font, loc[0], loc[1], font_shadow_color)
     draw.text(loc, text, font=font, fill=font_color)
+
     return np.array(pil_im)
 
 def create_folder_path(camera_dir_list):
