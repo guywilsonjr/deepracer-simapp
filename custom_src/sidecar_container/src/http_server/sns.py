@@ -4,6 +4,7 @@ from typing import Any, Dict
 
 import aioboto3
 import orjson
+from botocore.exceptions import ClientError
 
 from utils import logger
 
@@ -14,6 +15,7 @@ SNS_MAX_MESSAGE_SIZE = 256 * 1024
 class BufferedSNSClient:
 
     def __init__(self):
+        self.expired_token = False
         self.cache = deque()
         self.message_bytes = None
         self.size_checkpoint = 100
@@ -26,11 +28,18 @@ class BufferedSNSClient:
         )
 
     async def _send(self, message: str):
-        async with self.aws_session.client('sns') as sns:
-            await sns.publish(
-                TopicArn=os.environ['SNS_TOPIC_ARN'],
-                Message=message
-            )
+        if self.expired_token:
+            return
+        try:
+            async with self.aws_session.client('sns') as sns:
+                await sns.publish(
+                    TopicArn=os.environ['SNS_TOPIC_ARN'],
+                    Message=message
+                )
+        except ClientError as e:
+            logger.error(f"Failed to send message to SNS: {e}")
+            if 'ExpiredToken' in str(e):
+                self.expired_token = True
 
     async def send(self, new_message_data: Dict[str, Any]):
         new_message_bytes = orjson.dumps(new_message_data)

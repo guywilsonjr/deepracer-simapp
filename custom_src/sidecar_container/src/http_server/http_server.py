@@ -48,7 +48,7 @@ def get_bytes_and_tar_info(image_data: bytes, split_data: list[str]):
 
 async def process_rollout_step_messages(body: dict):
     # Wait for 60 seconds after the next rollout step to ensure all images are received for the previous rollout step
-    await asyncio.sleep(60)
+    await asyncio.sleep(180)
     if rollout_image_data:
         sim_id = int(body['sim_id'])
         rollout_idx = int(body['rollout_idx'])

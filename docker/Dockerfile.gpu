@@ -103,12 +103,13 @@ RUN pip3 install -r custom_requirements.txt
 ADD custom_src/sidecar_process /sidecar
 
 WORKDIR /sidecar/sidecar
+RUN pip3 install mypy types-Pillow
 RUN pip3 install .
 RUN pip3 install pyroscope-io
-
 WORKDIR /opt/install
 
 RUN mkdir /sockets
+RUN mkdir /images
 ENV SIDECAR_SOCKET_PATH=/sockets/sidecar.sock
 ENV SIDECAR_HTTP_SOCKET_PATH=/sockets/sidecar_http.sock
 

@@ -41,12 +41,15 @@ import pyroscope
 from sidecar import sidecar_process
 
 
+import os
+prefix = os.environ['SAGEMAKER_SHARED_S3_PREFIX']
+worker_id = os.environ['ROLLOUT_IDX']
 pyroscope.configure(
-    application_name="agents_video_editor",  # replace this with some name for your application
+    application_name=f"{prefix}-{worker_id}-agents_video_editor",  # replace this with some name for your application
     server_address="http://pyroscope:4040",  # replace this with the address of your Pyroscope server
     detect_subprocesses=True,  # detect subprocesses started by the main process; default is False
-    oncpu=False,  # report cpu time only; default is True
-    gil_only=False,  # only include traces for threads that are holding on to the Global Interpreter Lock; default is True
+    oncpu=True,  # report cpu time only; default is True
+    gil_only=True,  # only include traces for threads that are holding on to the Global Interpreter Lock; default is True
     enable_logging=True,  # does enable logging facility; default is False
     report_pid=True,
     report_thread_id=True,
@@ -320,38 +323,40 @@ class AgentsVideoEditor(object):
         Arguments:
             frame (cv2.ImgMsg): Image/Sensor topic of the camera image frame
         """
-        if not rospy.is_shutdown():
-            if len(self.racecars_info) != len(self._mp4_queue):
-                pass
-            self._update_racers_metrics()
-            self._main_camera_frame_buffer.put(frame)
+        with pyroscope.tag_wrapper({"thread": "ProducerFrameThread"}):
+            if not rospy.is_shutdown():
+                if len(self.racecars_info) != len(self._mp4_queue):
+                    pass
+                self._update_racers_metrics()
+                self._main_camera_frame_buffer.put(frame)
 
-            # Get frame from main camera & agents metric information
-            frame_metric_data = self.get_latest_frame_metric_data()
+                # Get frame from main camera & agents metric information
+                frame_metric_data = self.get_latest_frame_metric_data()
 
-            if self.is_save_mp4_enabled:
-                if self._mp4_queue[self.racecar_index].qsize() == MAX_FRAMES_IN_QUEUE:
-                    LOG.info("Dropping Mp4 frame from the queue")
-                    self._mp4_queue[self.racecar_index].get()
-                # Append to the MP4 queue
-                self._mp4_queue[self.racecar_index].put(frame_metric_data)
+                if self.is_save_mp4_enabled:
+                    if self._mp4_queue[self.racecar_index].qsize() == MAX_FRAMES_IN_QUEUE:
+                        LOG.info("Dropping Mp4 frame from the queue")
+                        self._mp4_queue[self.racecar_index].get()
+                    # Append to the MP4 queue
+                    self._mp4_queue[self.racecar_index].put(frame_metric_data)
 
     def _consumer_mp4_frame_thread(self):
         """ Consumes the frame produced by the _producer_frame_thread and edits the image
         The edited image is put into another queue for publishing to MP4 topic
         """
-        while not rospy.is_shutdown():
-            frame_data = None
-            try:
-                # Pop from the queue and edit the image
-                frame_data = self._mp4_queue[self.racecar_index].get(timeout=QUEUE_WAIT_TIME)
-            except queue.Empty:
-                LOG.debug("AgentsVideoEditor._mp4_queue['{}'] is empty. Retrying...".format(self.racecar_index))
-            if frame_data:
-                edited_frames = self._edit_camera_images(frame_data, is_mp4=True)
-                self.mp4_main_camera_pub.publish(edited_frames[FrameTypes.MAIN_CAMERA_FRAME.value])
-                if self.top_camera_mp4_pub:
-                    self.top_camera_mp4_pub.publish(edited_frames[FrameTypes.TOP_CAMERA_FRAME.value])
+        with pyroscope.tag_wrapper({"thread": "ConsumerMp4FrameThread"}):
+            while not rospy.is_shutdown():
+                frame_data = None
+                try:
+                    # Pop from the queue and edit the image
+                    frame_data = self._mp4_queue[self.racecar_index].get(timeout=QUEUE_WAIT_TIME)
+                except queue.Empty:
+                    LOG.debug("AgentsVideoEditor._mp4_queue['{}'] is empty. Retrying...".format(self.racecar_index))
+                if frame_data:
+                    edited_frames = self._edit_camera_images(frame_data, is_mp4=True)
+                    self.mp4_main_camera_pub.publish(edited_frames[FrameTypes.MAIN_CAMERA_FRAME.value])
+                    if self.top_camera_mp4_pub:
+                        self.top_camera_mp4_pub.publish(edited_frames[FrameTypes.TOP_CAMERA_FRAME.value])
 
     def _kvs_publisher(self):
         """ Publishing the latest edited image to KVS topic at 15 FPS real time.
@@ -360,28 +365,29 @@ class AgentsVideoEditor(object):
         are not published at this rate, there will be jitter and video will be laggy. So it has to always
         be the real time. Unlike mp4_publisher this cannot be a simulation time.
         """
-        try:
-            prev_time = time.time()
-            while not rospy.is_shutdown():
-                if len(self.racecars_info) > len(self._agents_metrics):
-                    # Waiting for all the agents to initialize before editing videos
-                    # There could be condition when racecar_0 starts editing frames before racecar_1 is initialized
-                    time.sleep(KVS_PUBLISH_PERIOD)
-                    continue
-                elif len(self.racecars_info) < len(self._agents_metrics):
-                    log_and_exit("Agents video editing metric cannot be larger than racecar info",
-                                 SIMAPP_SIMULATION_KINESIS_VIDEO_CAMERA_EXCEPTION,
-                                 SIMAPP_EVENT_ERROR_CODE_500)
-                frame_metric_data = self.get_latest_frame_metric_data()
-                edited_frames = self._edit_camera_images(frame_metric_data, is_mp4=False)
-                if not rospy.is_shutdown():
-                    self.kvs_pub.publish(edited_frames[FrameTypes.MAIN_CAMERA_FRAME.value])
-                    cur_time = time.time()
-                    time_diff = cur_time - prev_time
-                    time.sleep(max(KVS_PUBLISH_PERIOD - time_diff, 0))
-                    prev_time = time.time()
-        except (rospy.ROSInterruptException, rospy.ROSException):
-            pass
+        with pyroscope.tag_wrapper({"thread": "KvsPublisherThread"}):
+            try:
+                prev_time = time.time()
+                while not rospy.is_shutdown():
+                    if len(self.racecars_info) > len(self._agents_metrics):
+                        # Waiting for all the agents to initialize before editing videos
+                        # There could be condition when racecar_0 starts editing frames before racecar_1 is initialized
+                        time.sleep(KVS_PUBLISH_PERIOD)
+                        continue
+                    elif len(self.racecars_info) < len(self._agents_metrics):
+                        log_and_exit("Agents video editing metric cannot be larger than racecar info",
+                                     SIMAPP_SIMULATION_KINESIS_VIDEO_CAMERA_EXCEPTION,
+                                     SIMAPP_EVENT_ERROR_CODE_500)
+                    frame_metric_data = self.get_latest_frame_metric_data()
+                    edited_frames = self._edit_camera_images(frame_metric_data, is_mp4=False)
+                    if not rospy.is_shutdown():
+                        self.kvs_pub.publish(edited_frames[FrameTypes.MAIN_CAMERA_FRAME.value])
+                        cur_time = time.time()
+                        time_diff = cur_time - prev_time
+                        time.sleep(max(KVS_PUBLISH_PERIOD - time_diff, 0))
+                        prev_time = time.time()
+            except (rospy.ROSInterruptException, rospy.ROSException):
+                pass
 
 
 def get_racecars_info(racecar_names):

@@ -64,7 +64,7 @@ from markov.boto.s3.constants import (HYPERPARAMETER_LOCAL_PATH_FORMAT,
                                       ModelMetadataKeys)
 from markov.boto.s3.s3_client import S3Client
 from std_srvs.srv import Empty, EmptyRequest
-from sidecar import sidecar_ process
+from sidecar import sidecar_process
 import pyroscope
 
 pyroscope.configure(
@@ -212,7 +212,6 @@ def rollout_worker(graph_manager, num_workers, rollout_idx, task_parameters, sim
                     == DistributedCoachSynchronizationType.SYNC:
                 unpause_physics(EmptyRequest())
                 is_save_mp4_enabled = rospy.get_param('MP4_S3_BUCKET', None) and rollout_idx == 0
-                logger.info("Is save mp4 enabled: {}".format(is_save_mp4_enabled))
                 if is_save_mp4_enabled:
                     subscribe_to_save_mp4(EmptyRequest())
                 if rollout_idx == 0:

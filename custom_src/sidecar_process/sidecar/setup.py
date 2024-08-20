@@ -1,8 +1,16 @@
+from mypyc.build import mypycify
 from setuptools import setup
 
 
 setup(
     name='sidecar',
     version='0.0.1',
-    py_modules=['sidecar', 'standard_processor', 'utils', 'image_processor']
+    packages=['.'],
+    ext_modules=mypycify(
+        ['--disallow-untyped-defs',
+            'sidecar.py'
+        ],
+        opt_level='fast',
+        separate=False
+    ),
 )

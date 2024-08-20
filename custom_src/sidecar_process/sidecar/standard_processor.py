@@ -1,38 +1,53 @@
+import base64
 import socket
 import os
-import multiprocessing.queues
 import logging
 import time
+from queue import Queue
+from typing import Any, Dict
+
+import orjson
 
 
 socket_path = os.environ['SIDECAR_SOCKET_PATH']
 
-from markov.log_handler.logger import Logger
 
 
-logger = Logger(__name__, logging.INFO).get_logger()
+logger = logging.getLogger(__name__)
 
 logger.info(f"imported sidecar standard processor")
 
 class Bytecounter:
-    def __init__(self):
-        self.start_time = None
+    def __init__(self) -> None:
+        self.start_time = time.time()
         self.bytes_sent = 0
         self.checkpoint = time.time() + 10
 
-    def increment(self, bytes_sent):
-        if self.start_time is None:
-            self.start_time = time.time()
+    def increment(self, bytes_sent: int) -> None:
         self.bytes_sent += bytes_sent
         if time.time() > self.checkpoint:
-            logger.info(f"Sent {self.bytes_sent * 1e-9} MB in {time.time() - self.start_time} seconds with throughput {self.throughput*1e-9} MB/sec")
+            logger.info(f"Sent {self.bytes_sent * 1e-6} MB in {time.time() - self.start_time} seconds with throughput {self.throughput*1e-6} MB/sec")
             self.checkpoint = time.time() + 10
 
     @property
-    def throughput(self):
+    def throughput(self) -> float:
         return self.bytes_sent / (time.time() - self.start_time)
 
+
 my_bytecounter = Bytecounter()
+
+
+def handle_image_message(image_data: dict) -> bytes:
+    image_data_dict = image_data
+    if image_data_dict['message_type'] != 'IMAGE':
+        return orjson.dumps(image_data)
+
+    byte_image = image_data_dict['image_val']
+    del image_data_dict['image_val']
+
+    b64_image = base64.b64encode(byte_image)
+    image_data_dict['b64_image'] = b64_image.decode()
+    return orjson.dumps(image_data_dict)
 
 
 def send_unix_socket_message(message: bytes) -> None:
@@ -49,20 +64,22 @@ def send_unix_socket_message(message: bytes) -> None:
             logger.error(f"Socket error connecting to {socket_path}\n{e}")
 
 
-def standard_queue_consumer(queue: 'multiprocessing.queues.SimpleQueue[bytes]') -> None:
+def standard_queue_consumer(queue: 'Queue[Dict[str, Any]]') -> None:
     """Consumer function that reads from a queue and sends messages to a Unix socket."""
     # Ensure the socket path does not already exist
 
     while True:
+
         # Receive message from the queue
         message = queue.get()
         if message is None:
             # Use a sentinel value (like None) to indicate shutdown
             break
-        send_unix_socket_message(message)
+        serialized_message = handle_image_message(message)
+        send_unix_socket_message(serialized_message)
 
 
-def run(simple_queue: 'multiprocessing.queues.SimpleQueue[bytes]') -> None:
+def run(simple_queue: 'Queue[Dict[str, Any]]') -> None:
     logger.info(f"Starting queue consumer with Unix socket connection: {socket_path}")
     standard_queue_consumer(simple_queue)
 

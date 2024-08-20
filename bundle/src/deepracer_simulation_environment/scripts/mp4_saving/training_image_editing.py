@@ -1,12 +1,11 @@
 """ Each race type has its own metrics to be popullated on the image.
 This module takes care of addressing each race type editting of images.
 """
-import asyncio
 import logging
-from io import BytesIO
 
 import cv2
 import numpy as np
+import pyroscope
 from PIL import Image
 
 from markov.log_handler.logger import Logger
@@ -116,10 +115,10 @@ class TrainingImageEditing(ImageEditingInterface):
             major_cv_image, agents_loc, objects_loc, self.track_start_loc)
 
     def edit_image(self, major_cv_image, metric_info):
-        mp4_video_metrics_info = metric_info[FrameQueueData.AGENT_METRIC_INFO.value]
-        cur_training_phase = metric_info[FrameQueueData.TRAINING_PHASE.value]
-        sidecar_process.prepare_and_send_image_message(mp4_video_metrics_info, major_cv_image)
-
-        major_cv_image = self._edit_major_cv_image(major_cv_image, cur_training_phase)
-        major_cv_image = self._plot_agents_on_major_cv_image(major_cv_image, mp4_video_metrics_info)
-        return cv2.cvtColor(major_cv_image, cv2.COLOR_BGRA2RGB)
+        with pyroscope.tag_wrapper({'function': 'edit_image'}):
+            mp4_video_metrics_info = metric_info[FrameQueueData.AGENT_METRIC_INFO.value]
+            cur_training_phase = metric_info[FrameQueueData.TRAINING_PHASE.value]
+            sidecar_process.prepare_and_send_image_message(mp4_video_metrics_info, major_cv_image)
+            major_cv_image = self._edit_major_cv_image(major_cv_image, cur_training_phase)
+            major_cv_image = self._plot_agents_on_major_cv_image(major_cv_image, mp4_video_metrics_info)
+            return cv2.cvtColor(major_cv_image, cv2.COLOR_BGRA2RGB)
