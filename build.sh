@@ -8,17 +8,11 @@ function ctrl_c() {
 
 set -e
 
-PREFIX="awsdeepracercommunity"
-ARCH="cpu gpu"
+ARCH="gpu"
+PREFIX="gwjr"
 
-while getopts ":a:fp:" opt; do
+while getopts ":f:" opt; do
     case $opt in
-    a)
-        ARCH="$OPTARG"
-        ;;
-    p)
-        PREFIX="$OPTARG"
-        ;;
     f)
         OPT_NOCACHE="--no-cache"
         ;;

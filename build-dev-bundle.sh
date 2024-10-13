@@ -6,7 +6,7 @@ function ctrl_c() {
     exit 1
 }
 
-PREFIX="awsdeepracercommunity"
+PREFIX="gwjr"
 
 while getopts ":gfp:" opt; do
     case $opt in

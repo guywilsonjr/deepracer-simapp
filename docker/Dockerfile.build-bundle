@@ -1,4 +1,4 @@
-ARG CORE_PREFIX=awsdeepracercommunity
+ARG CORE_PREFIX=gwjr
 FROM $CORE_PREFIX/deepracer-simapp-build-core:latest
 
 COPY bundle/ /opt/bundle
